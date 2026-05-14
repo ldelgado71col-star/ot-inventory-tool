@@ -1,51 +1,51 @@
-version: "3.9"
-
-services:
-
+﻿services:
   db:
-    image: postgres:16-alpine
-    container_name: ot-inventory-db
+    image: timescale/timescaledb:latest-pg16
+    container_name: ot_inventory_db
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: otuser
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: ot_inventory
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ot_inventory_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    networks:
+      - ot_inventory_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U otuser"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   api:
     build:
-      context: ../../backend
-      dockerfile: ../infrastructure/docker/Dockerfile.backend
-    container_name: ot-inventory-api
-    ports:
-      - "8000:8000"
+      context: ./api
+    container_name: ot_inventory_api
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://otuser:changeme@db:5432/ot_inventory
-      SCAN_ENABLED: "false"
-      PASSIVE_ENABLED: "false"
+      POSTGRES_HOST: db
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${API_PORT}:8000"
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ../../backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  frontend:
-    image: node:20-alpine
-    container_name: ot-inventory-frontend
-    working_dir: /app
-    ports:
-      - "3000:3000"
-    volumes:
-      - ../../frontend:/app
-    command: sh -c "npm install && npm run dev"
+    networks:
+      - ot_inventory_net
 
 volumes:
-  postgres_data:
+  ot_inventory_pgdata:
+
+networks:
+  ot_inventory_net:
+    driver: bridge
