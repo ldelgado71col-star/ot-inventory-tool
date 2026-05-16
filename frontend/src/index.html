@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OT Inventory Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #222; font-size: 13px; }
+    .header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+    .badge { background: #e8f5e9; color: #2e7d32; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
+    .badge-warn { background: #fff3e0; color: #e65100; }
+    .header-right { display: flex; gap: 8px; }
+    button { padding: 6px 14px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 12px; color: #333; }
+    button:hover { background: #f0f0f0; }
+    button.primary { background: #1565c0; color: #fff; border-color: #1565c0; }
+    button.primary:hover { background: #0d47a1; }
+    .cards { display: flex; gap: 12px; padding: 16px 20px 8px; }
+    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 16px; flex: 1; }
+    .card-label { font-size: 11px; color: #777; margin-bottom: 4px; }
+    .card-value { font-size: 24px; font-weight: 600; }
+    .card-value.green { color: #2e7d32; }
+    .card-value.orange { color: #e65100; }
+    .card-value.blue { color: #1565c0; }
+    .filters { padding: 8px 20px; display: flex; gap: 8px; align-items: center; }
+    .filters input, .filters select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: #fff; }
+    .filters input { width: 240px; }
+    .filter-label { font-size: 11px; color: #777; margin-left: 8px; }
+    .main { display: flex; gap: 12px; padding: 8px 20px 20px; }
+    .table-wrap { flex: 1; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #f5f5f5; }
+    th { padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #555; border-bottom: 1px solid #e0e0e0; white-space: nowrap; cursor: pointer; user-select: none; }
+    th:hover { background: #eee; }
+    td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    tr:hover { background: #f9f9f9; cursor: pointer; }
+    tr.selected { background: #e3f2fd !important; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: #4caf50; }
+    .type-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; white-space: nowrap; }
+    .type-network { background: #e3f2fd; color: #1565c0; }
+    .type-iot { background: #e8f5e9; color: #2e7d32; }
+    .type-endpoint { background: #fff3e0; color: #e65100; }
+    .type-unknown { background: #fce4ec; color: #c62828; }
+    .type-plc { background: #f3e5f5; color: #6a1b9a; }
+    .mono { font-family: 'Courier New', monospace; font-size: 11px; }
+    .detail { width: 300px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; }
+    .detail-title { font-size: 11px; font-weight: 600; color: #777; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+    .detail-empty { color: #aaa; font-size: 12px; text-align: center; margin-top: 60px; line-height: 1.8; }
+    .detail-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f0f0f0; gap: 8px; }
+    .detail-key { color: #777; font-size: 11px; flex-shrink: 0; }
+    .detail-val { font-size: 11px; color: #222; text-align: right; word-break: break-all; }
+    .detail-section { font-size: 11px; font-weight: 600; color: #555; margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .detail-icon { font-size: 28px; margin-bottom: 6px; }
+    .detail-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .detail-subtype { font-size: 11px; color: #777; margin-bottom: 12px; }
+    textarea { width: 100%; padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; height: 80px; resize: none; font-family: inherit; margin-top: 6px; }
+    textarea:focus { outline: none; border-color: #1565c0; }
+    .btn-row { display: flex; gap: 6px; margin-top: 8px; }
+    .btn-row button { flex: 1; font-size: 11px; padding: 6px; }
+    .loading { text-align: center; padding: 40px; color: #aaa; }
+    .scan-status { font-size: 11px; color: #777; }
+    .note-icon { font-size: 11px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">🔍 OT Inventory Tool</span>
+    <span class="badge" id="api-status">Connecting...</span>
+    <span class="scan-status" id="scan-status"></span>
+  </div>
+  <div class="header-right">
+    <button onclick="runScan()">⚡ Quick Scan</button>
+    <button onclick="exportCSV()">⬇ Export CSV</button>
+    <button class="primary" onclick="loadAssets()">🔄 Refresh</button>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card"><div class="card-label">Total assets</div><div class="card-value blue" id="total">—</div></div>
+  <div class="card"><div class="card-label">Online</div><div class="card-value green" id="online">—</div></div>
+  <div class="card"><div class="card-label">Unknown</div><div class="card-value orange" id="unknown">—</div></div>
+  <div class="card"><div class="card-label">Network devices</div><div class="card-value" id="network">—</div></div>
+  <div class="card"><div class="card-label">IoT devices</div><div class="card-value" id="iot">—</div></div>
+  <div class="card"><div class="card-label">Last updated</div><div class="card-value" style="font-size:13px;" id="last-updated">—</div></div>
+</div>
+
+<div class="filters">
+  <input type="text" id="search" placeholder="🔍 Search IP, MAC, vendor..." oninput="filterTable()" />
+  <select id="filter-type" onchange="filterTable()">
+    <option value="">All types</option>
+    <option value="Network">Network</option>
+    <option value="IoT">IoT</option>
+    <option value="Endpoint">Endpoint</option>
+    <option value="Unknown">Unknown</option>
+    <option value="PLC">PLC</option>
+  </select>
+  <select id="filter-vendor" onchange="filterTable()">
+    <option value="">All vendors</option>
+  </select>
+  <span class="filter-label" id="result-count"></span>
+</div>
+
+<div class="main">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:20px;"></th>
+          <th onclick="sortBy('ip_address')">IP Address ↕</th>
+          <th onclick="sortBy('mac')">MAC — Cisco Format ↕</th>
+          <th onclick="sortBy('vendor')">Vendor ↕</th>
+          <th onclick="sortBy('device_type')">Device Type ↕</th>
+          <th onclick="sortBy('location')">Location ↕</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="asset-tbody">
+        <tr><td colspan="7" class="loading">Loading assets...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="detail">
+    <div class="detail-title">Device Details</div>
+    <div id="detail-content" class="detail-empty">👆 Click any row<br>to view details<br>and add notes</div>
+  </div>
+</div>
+
+<script>
+  const API = 'http://192.168.2.139:8000';
+  let allAssets = [];
+  let selectedId = null;
+  let sortKey = 'ip_address';
+  let sortAsc = true;
+  let notes = {};
+  try { notes = JSON.parse(localStorage.getItem('ot-notes') || '{}'); } catch(e) {}
+
+  function toCiscoMac(assetTag) {
+    if (!assetTag) return '—';
+    const raw = assetTag.replace(/^NET-/i, '').toLowerCase();
+    if (raw.length !== 12) return assetTag;
+    return raw.slice(0,4) + '.' + raw.slice(4,8) + '.' + raw.slice(8,12);
+  }
+
+  function toStandardMac(assetTag) {
+    if (!assetTag) return '—';
+    const raw = assetTag.replace(/^NET-/i, '').toLowerCase();
+    if (raw.length !== 12) return assetTag;
+    return raw.match(/.{2}/g).join(':');
+  }
+
+  function ipToNum(ip) {
+    if (!ip) return 0;
+    return ip.split('/')[0].split('.').reduce((acc, v) => acc * 256 + parseInt(v), 0);
+  }
+
+  function sortBy(key) {
+    sortAsc = (sortKey === key) ? !sortAsc : true;
+    sortKey = key;
+    filterTable();
+  }
+
+  function getTypeClass(t) {
+    if (!t) return 'type-unknown';
+    if (t === 'PLC') return 'type-plc';
+    if (t.includes('Network')) return 'type-network';
+    if (t.includes('IoT')) return 'type-iot';
+    if (t.includes('Endpoint')) return 'type-endpoint';
+    return 'type-unknown';
+  }
+
+  function getTypeShort(t) {
+    if (!t) return 'Unknown';
+    if (t === 'PLC') return 'PLC';
+    return t.split('—')[0].trim();
+  }
+
+  function getIcon(t) {
+    if (!t) return '❓';
+    if (t === 'PLC') return '🔧';
+    if (t.includes('Router') || t.includes('Switch') || t.includes('Mesh')) return '🔀';
+    if (t.includes('Smart Plug')) return '🔌';
+    if (t.includes('ESP32') || t.includes('ESP8266')) return '📡';
+    if (t.includes('Apple')) return '🍎';
+    if (t.includes('PC') || t.includes('Laptop')) return '💻';
+    if (t.includes('Vacuum')) return '🤖';
+    if (t.includes('Energy')) return '⚡';
+    if (t.includes('Lighting')) return '💡';
+    if (t.includes('Zigbee')) return '🏠';
+    if (t.includes('Printer')) return '🖨';
+    if (t.includes('Virtual')) return '🖥';
+    if (t.includes('Bond')) return '📻';
+    return '📦';
+  }
+
+  function saveNote(id) {
+    const val = document.getElementById('note-' + id);
+    if (!val) return;
+    notes[id] = val.value;
+    try { localStorage.setItem('ot-notes', JSON.stringify(notes)); } catch(e) {}
+    filterTable();
+    alert('Note saved.');
+  }
+
+  function openWebUI(ip) {
+    if (confirm('Open web interface for ' + ip + '?\n\nNote: not all devices have a web UI.')) {
+      window.open('http://' + ip, '_blank');
+    }
+  }
+
+  async function loadAssets() {
+    try {
+      const res = await fetch(API + '/assets');
+      const data = await res.json();
+      allAssets = data;
+      document.getElementById('api-status').textContent = 'Connected';
+      document.getElementById('api-status').className = 'badge';
+      document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+      updateCards();
+      populateVendorFilter();
+      filterTable();
+    } catch(e) {
+      document.getElementById('api-status').textContent = 'Offline';
+      document.getElementById('api-status').className = 'badge badge-warn';
+      document.getElementById('asset-tbody').innerHTML = '<tr><td colspan="7" class="loading">Cannot connect to API at ' + API + '</td></tr>';
+    }
+  }
+
+  function updateCards() {
+    const t = allAssets.length;
+    document.getElementById('total').textContent = t;
+    document.getElementById('online').textContent = t;
+    document.getElementById('unknown').textContent = allAssets.filter(a => !a.device_type || a.device_type.includes('Unknown')).length;
+    document.getElementById('network').textContent = allAssets.filter(a => a.device_type && a.device_type.includes('Network')).length;
+    document.getElementById('iot').textContent = allAssets.filter(a => a.device_type && a.device_type.includes('IoT')).length;
+  }
+
+  function populateVendorFilter() {
+    const vendors = [...new Set(allAssets.map(a => a.vendor).filter(Boolean))].sort();
+    document.getElementById('filter-vendor').innerHTML = '<option value="">All vendors</option>' +
+      vendors.map(v => '<option value="' + v + '">' + v.substring(0,35) + '</option>').join('');
+  }
+
+  function filterTable() {
+    const search = document.getElementById('search').value.toLowerCase();
+    const typeF = document.getElementById('filter-type').value;
+    const vendorF = document.getElementById('filter-vendor').value;
+
+    let filtered = allAssets.filter(a => {
+      const cisco = toCiscoMac(a.asset_tag);
+      const std = toStandardMac(a.asset_tag);
+      const matchS = !search ||
+        (a.ip_address||'').toLowerCase().includes(search) ||
+        cisco.toLowerCase().includes(search) ||
+        std.toLowerCase().includes(search) ||
+        (a.vendor||'').toLowerCase().includes(search) ||
+        (a.device_type||'').toLowerCase().includes(search);
+      const matchT = !typeF || (a.device_type||'').includes(typeF);
+      const matchV = !vendorF || a.vendor === vendorF;
+      return matchS && matchT && matchV;
+    });
+
+    filtered.sort((a, b) => {
+      let va = sortKey === 'ip_address' ? ipToNum(a.ip_address) : sortKey === 'mac' ? toCiscoMac(a.asset_tag) : (a[sortKey]||'');
+      let vb = sortKey === 'ip_address' ? ipToNum(b.ip_address) : sortKey === 'mac' ? toCiscoMac(b.asset_tag) : (b[sortKey]||'');
+      return sortAsc ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
+    });
+
+    document.getElementById('result-count').textContent = 'Showing ' + filtered.length + ' of ' + allAssets.length + ' assets';
+
+    const tbody = document.getElementById('asset-tbody');
+    if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" class="loading">No assets found</td></tr>'; return; }
+
+    tbody.innerHTML = filtered.map(a => {
+      const ip = (a.ip_address||'').replace('/32','');
+      const cisco = toCiscoMac(a.asset_tag);
+      const hasNote = notes[a.id] && notes[a.id].trim().length > 0;
+      return '<tr class="' + (a.id === selectedId ? 'selected' : '') + '" onclick="selectAsset(' + a.id + ')">' +
+        '<td><span class="status-dot"></span></td>' +
+        '<td class="mono">' + ip + '</td>' +
+        '<td class="mono">' + cisco + '</td>' +
+        '<td>' + (a.vendor||'—') + '</td>' +
+        '<td><span class="type-badge ' + getTypeClass(a.device_type) + '">' + getTypeShort(a.device_type) + '</span></td>' +
+        '<td>' + (a.location||'—') + '</td>' +
+        '<td>' + (hasNote ? '<span class="note-icon">📝</span>' : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function selectAsset(id) {
+    selectedId = id;
+    const a = allAssets.find(x => x.id === id);
+    if (!a) return;
+    filterTable();
+    const ip = (a.ip_address||'').replace('/32','');
+    const cisco = toCiscoMac(a.asset_tag);
+    const standard = toStandardMac(a.asset_tag);
+    const currentNote = notes[a.id] || '';
+    document.getElementById('detail-content').innerHTML =
+      '<div class="detail-icon">' + getIcon(a.device_type) + '</div>' +
+      '<div class="detail-name">' + (a.vendor||'Unknown device') + '</div>' +
+      '<div class="detail-subtype">' + (a.device_type||'Unknown type') + '</div>' +
+      '<div class="detail-section">Network</div>' +
+      '<div class="detail-row"><span class="detail-key">IP Address</span><span class="detail-val mono">' + ip + '</span></div>' +
+      '<div class="detail-row"><span class="detail-key">MAC Cisco</span><span class="detail-val mono">' + cisco + '</span></div>' +
+      '<div class="detail-row"><span class="detail-key">MAC Standard</span><span class="detail-val mono">' + standard + '</span></div>' +
+      '<div class="detail-row"><span class="detail-key">Protocol</span><span class="detail-val">' + (a.protocol||'—') + '</span></div>' +
+      '<div class="detail-row"><span class="detail-key">Location</span><span class="detail-val">' + (a.location||'—') + '</span></div>' +
+      '<div class="detail-section">Asset Info</div>' +
+      '<div class="detail-row"><span class="detail-key">Model</span><span class="detail-val">' + (a.model||'—') + '</span></div>' +
+      '<div class="detail-row"><span class="detail-key">Firmware</span><span class="detail-val">' + (a.firmware_version||'—') + '</span></div>' +
+      '<div class="detail-row"><span class="detail-key">First seen</span><span class="detail-val">' + (a.created_at ? new Date(a.created_at).toLocaleDateString() : '—') + '</span></div>' +
+      '<div class="detail-section">Notes</div>' +
+      '<textarea id="note-' + a.id + '" placeholder="Add notes about this device...">' + currentNote + '</textarea>' +
+      '<div class="btn-row">' +
+      '<button class="primary" onclick="saveNote(' + a.id + ')">💾 Save note</button>' +
+      '<button onclick="openWebUI(\'' + ip + '\')">🌐 Web UI</button>' +
+      '</div>';
+  }
+
+  async function runScan() {
+    document.getElementById('scan-status').textContent = '⏳ Scanning...';
+    try {
+      const res = await fetch(API + '/discovery/scan/quick');
+      const data = await res.json();
+      document.getElementById('scan-status').textContent = '✅ Found ' + data.devices_found + ' devices';
+      setTimeout(loadAssets, 1000);
+    } catch(e) {
+      document.getElementById('scan-status').textContent = '❌ Scan failed';
+    }
+  }
+
+  function exportCSV() {
+    const headers = ['ID','IP Address','MAC Cisco','MAC Standard','Vendor','Device Type','Protocol','Location','Model','Firmware','Notes','First Seen'];
+    const rows = allAssets.map(a => [
+      a.id, (a.ip_address||'').replace('/32',''), toCiscoMac(a.asset_tag), toStandardMac(a.asset_tag),
+      a.vendor, a.device_type, a.protocol, a.location, a.model, a.firmware_version,
+      notes[a.id]||'', a.created_at
+    ]);
+    const csv = [headers,...rows].map(r => r.map(v => '"'+(v||'')+'"').join(',')).join('\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+    link.download = 'ot-inventory-' + new Date().toISOString().split('T')[0] + '.csv';
+    link.click();
+  }
+
+  loadAssets();
+  setInterval(loadAssets, 60000);
+</script>
+</body>
+</html>
