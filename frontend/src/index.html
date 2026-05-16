@@ -7,16 +7,19 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #222; font-size: 13px; }
+
     .header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
     .header-left { display: flex; align-items: center; gap: 12px; }
     .logo { font-size: 16px; font-weight: 600; color: #1a1a1a; }
     .badge { background: #e8f5e9; color: #2e7d32; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
     .badge-warn { background: #fff3e0; color: #e65100; }
-    .header-right { display: flex; gap: 8px; }
+    .header-right { display: flex; gap: 8px; align-items: center; }
+    .scan-status { font-size: 11px; color: #777; }
     button { padding: 6px 14px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; font-size: 12px; color: #333; }
     button:hover { background: #f0f0f0; }
     button.primary { background: #1565c0; color: #fff; border-color: #1565c0; }
     button.primary:hover { background: #0d47a1; }
+
     .cards { display: flex; gap: 12px; padding: 16px 20px 8px; }
     .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 16px; flex: 1; }
     .card-label { font-size: 11px; color: #777; margin-bottom: 4px; }
@@ -24,19 +27,32 @@
     .card-value.green { color: #2e7d32; }
     .card-value.orange { color: #e65100; }
     .card-value.blue { color: #1565c0; }
-    .filters { padding: 8px 20px; display: flex; gap: 8px; align-items: center; }
+    .card-value.red { color: #c62828; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 0; padding: 0 20px; border-bottom: 1px solid #e0e0e0; background: #fff; }
+    .tab { padding: 10px 18px; font-size: 12px; font-weight: 500; cursor: pointer; color: #777; border-bottom: 2px solid transparent; }
+    .tab:hover { color: #333; }
+    .tab.active { color: #1565c0; border-bottom-color: #1565c0; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .filters { padding: 8px 20px; display: flex; gap: 8px; align-items: center; background: #fff; border-bottom: 1px solid #f0f0f0; }
     .filters input, .filters select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; background: #fff; }
-    .filters input { width: 240px; }
+    .filters input { width: 220px; }
     .filter-label { font-size: 11px; color: #777; margin-left: 8px; }
-    .main { display: flex; gap: 12px; padding: 8px 20px 20px; }
+
+    .main { display: flex; gap: 12px; padding: 12px 20px 20px; }
     .table-wrap { flex: 1; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
     thead tr { background: #f5f5f5; }
     th { padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #555; border-bottom: 1px solid #e0e0e0; white-space: nowrap; cursor: pointer; user-select: none; }
     th:hover { background: #eee; }
-    td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    td { padding: 7px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
     tr:hover { background: #f9f9f9; cursor: pointer; }
     tr.selected { background: #e3f2fd !important; }
+
     .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: #4caf50; }
     .type-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; white-space: nowrap; }
     .type-network { background: #e3f2fd; color: #1565c0; }
@@ -44,24 +60,36 @@
     .type-endpoint { background: #fff3e0; color: #e65100; }
     .type-unknown { background: #fce4ec; color: #c62828; }
     .type-plc { background: #f3e5f5; color: #6a1b9a; }
+
+    .lc-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+    .lc-active { background: #e8f5e9; color: #2e7d32; }
+    .lc-mature { background: #e3f2fd; color: #1565c0; }
+    .lc-eos { background: #fff3e0; color: #e65100; }
+    .lc-eol { background: #fce4ec; color: #c62828; }
+    .lc-unknown { background: #f5f5f5; color: #777; }
+
+    .risk-high { color: #c62828; font-weight: 600; }
+    .risk-med { color: #e65100; font-weight: 600; }
+    .risk-low { color: #2e7d32; font-weight: 600; }
+
     .mono { font-family: 'Courier New', monospace; font-size: 11px; }
-    .detail { width: 300px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; }
-    .detail-title { font-size: 11px; font-weight: 600; color: #777; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+
+    /* Detail panel */
+    .detail { width: 290px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 14px; }
+    .detail-title { font-size: 11px; font-weight: 600; color: #777; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
     .detail-empty { color: #aaa; font-size: 12px; text-align: center; margin-top: 60px; line-height: 1.8; }
-    .detail-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f0f0f0; gap: 8px; }
+    .detail-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f5f5f5; gap: 8px; }
     .detail-key { color: #777; font-size: 11px; flex-shrink: 0; }
     .detail-val { font-size: 11px; color: #222; text-align: right; word-break: break-all; }
-    .detail-section { font-size: 11px; font-weight: 600; color: #555; margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .detail-icon { font-size: 28px; margin-bottom: 6px; }
+    .detail-section { font-size: 11px; font-weight: 600; color: #555; margin: 10px 0 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .detail-icon { font-size: 26px; margin-bottom: 6px; }
     .detail-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-    .detail-subtype { font-size: 11px; color: #777; margin-bottom: 12px; }
-    textarea { width: 100%; padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; height: 80px; resize: none; font-family: inherit; margin-top: 6px; }
+    .detail-subtype { font-size: 11px; color: #777; margin-bottom: 10px; }
+    textarea { width: 100%; padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; height: 72px; resize: none; font-family: inherit; margin-top: 5px; }
     textarea:focus { outline: none; border-color: #1565c0; }
     .btn-row { display: flex; gap: 6px; margin-top: 8px; }
-    .btn-row button { flex: 1; font-size: 11px; padding: 6px; }
+    .btn-row button { flex: 1; font-size: 11px; padding: 5px; }
     .loading { text-align: center; padding: 40px; color: #aaa; }
-    .scan-status { font-size: 11px; color: #777; }
-    .note-icon { font-size: 11px; }
   </style>
 </head>
 <body>
@@ -73,7 +101,7 @@
     <span class="scan-status" id="scan-status"></span>
   </div>
   <div class="header-right">
-    <button onclick="runScan()">⚡ Quick Scan</button>
+    <button onclick="runScan()">⚡ Scan Network</button>
     <button onclick="exportCSV()">⬇ Export CSV</button>
     <button class="primary" onclick="loadAssets()">🔄 Refresh</button>
   </div>
@@ -83,50 +111,99 @@
   <div class="card"><div class="card-label">Total assets</div><div class="card-value blue" id="total">—</div></div>
   <div class="card"><div class="card-label">Online</div><div class="card-value green" id="online">—</div></div>
   <div class="card"><div class="card-label">Unknown</div><div class="card-value orange" id="unknown">—</div></div>
-  <div class="card"><div class="card-label">Network devices</div><div class="card-value" id="network">—</div></div>
-  <div class="card"><div class="card-label">IoT devices</div><div class="card-value" id="iot">—</div></div>
-  <div class="card"><div class="card-label">Last updated</div><div class="card-value" style="font-size:13px;" id="last-updated">—</div></div>
+  <div class="card"><div class="card-label">Network</div><div class="card-value" id="network">—</div></div>
+  <div class="card"><div class="card-label">IoT</div><div class="card-value" id="iot">—</div></div>
+  <div class="card"><div class="card-label">End of Life ⚠</div><div class="card-value red" id="eol">—</div></div>
+  <div class="card"><div class="card-label">Last scan</div><div class="card-value" style="font-size:12px;" id="last-updated">—</div></div>
 </div>
 
-<div class="filters">
-  <input type="text" id="search" placeholder="🔍 Search IP, MAC, vendor..." oninput="filterTable()" />
-  <select id="filter-type" onchange="filterTable()">
-    <option value="">All types</option>
-    <option value="Network">Network</option>
-    <option value="IoT">IoT</option>
-    <option value="Endpoint">Endpoint</option>
-    <option value="Unknown">Unknown</option>
-    <option value="PLC">PLC</option>
-  </select>
-  <select id="filter-vendor" onchange="filterTable()">
-    <option value="">All vendors</option>
-  </select>
-  <span class="filter-label" id="result-count"></span>
+<div class="tabs">
+  <div class="tab active" onclick="showTab('inventory')">📋 Asset Inventory</div>
+  <div class="tab" onclick="showTab('risk')">⚠ Risk & Obsolescence</div>
 </div>
 
-<div class="main">
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th style="width:20px;"></th>
-          <th onclick="sortBy('ip_address')">IP Address ↕</th>
-          <th onclick="sortBy('mac')">MAC — Cisco Format ↕</th>
-          <th onclick="sortBy('vendor')">Vendor ↕</th>
-          <th onclick="sortBy('device_type')">Device Type ↕</th>
-          <th onclick="sortBy('location')">Location ↕</th>
-          <th>Notes</th>
-        </tr>
-      </thead>
-      <tbody id="asset-tbody">
-        <tr><td colspan="7" class="loading">Loading assets...</td></tr>
-      </tbody>
-    </table>
+<!-- INVENTORY TAB -->
+<div id="tab-inventory" class="tab-content active">
+  <div class="filters">
+    <input type="text" id="search" placeholder="🔍 Search IP, MAC, hostname, vendor..." oninput="filterTable()" />
+    <select id="filter-type" onchange="filterTable()">
+      <option value="">All types</option>
+      <option value="Network">Network</option>
+      <option value="IoT">IoT</option>
+      <option value="Endpoint">Endpoint</option>
+      <option value="Unknown">Unknown</option>
+      <option value="PLC">PLC</option>
+    </select>
+    <select id="filter-vendor" onchange="filterTable()">
+      <option value="">All vendors</option>
+    </select>
+    <span class="filter-label" id="result-count"></span>
   </div>
+  <div class="main">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:14px;"></th>
+            <th onclick="sortBy('ip')">IP Address ↕</th>
+            <th onclick="sortBy('mac')">MAC — Cisco ↕</th>
+            <th onclick="sortBy('hostname')">Hostname ↕</th>
+            <th onclick="sortBy('vendor')">Vendor ↕</th>
+            <th onclick="sortBy('type')">Device Type ↕</th>
+            <th onclick="sortBy('location')">Location ↕</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="asset-tbody">
+          <tr><td colspan="8" class="loading">Loading assets...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="detail">
+      <div class="detail-title">Device Details</div>
+      <div id="detail-content" class="detail-empty">👆 Click any row<br>to view details<br>and add notes</div>
+    </div>
+  </div>
+</div>
 
-  <div class="detail">
-    <div class="detail-title">Device Details</div>
-    <div id="detail-content" class="detail-empty">👆 Click any row<br>to view details<br>and add notes</div>
+<!-- RISK TAB -->
+<div id="tab-risk" class="tab-content">
+  <div class="filters">
+    <input type="text" id="risk-search" placeholder="🔍 Search..." oninput="filterRisk()" />
+    <select id="risk-lc-filter" onchange="filterRisk()">
+      <option value="">All lifecycle</option>
+      <option value="Active">Active</option>
+      <option value="Active Mature">Active Mature</option>
+      <option value="End of Sale">End of Sale</option>
+      <option value="Discontinued">Discontinued / EOL</option>
+      <option value="Unknown">Unknown</option>
+    </select>
+    <span class="filter-label" id="risk-count"></span>
+  </div>
+  <div class="main">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:14px;"></th>
+            <th onclick="sortRisk('ip')">IP Address ↕</th>
+            <th onclick="sortRisk('mac')">MAC — Cisco ↕</th>
+            <th onclick="sortRisk('vendor')">Vendor ↕</th>
+            <th onclick="sortRisk('type')">Device Type ↕</th>
+            <th onclick="sortRisk('lc')">Lifecycle Status ↕</th>
+            <th onclick="sortRisk('risk')">Risk Score ↕</th>
+            <th>Action Required</th>
+          </tr>
+        </thead>
+        <tbody id="risk-tbody">
+          <tr><td colspan="8" class="loading">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="detail">
+      <div class="detail-title">Risk Details</div>
+      <div id="risk-detail-content" class="detail-empty">👆 Click any row<br>to view risk details</div>
+    </div>
   </div>
 </div>
 
@@ -134,59 +211,95 @@
   const API = 'http://192.168.2.139:8000';
   let allAssets = [];
   let selectedId = null;
-  let sortKey = 'ip_address';
-  let sortAsc = true;
+  let sortKey = 'ip'; sortAsc = true;
+  let riskSortKey = 'risk'; riskSortAsc = false;
   let notes = {};
   try { notes = JSON.parse(localStorage.getItem('ot-notes') || '{}'); } catch(e) {}
 
-  function toCiscoMac(assetTag) {
-    if (!assetTag) return '—';
-    const raw = assetTag.replace(/^NET-/i, '').toLowerCase();
-    if (raw.length !== 12) return assetTag;
-    return raw.slice(0,4) + '.' + raw.slice(4,8) + '.' + raw.slice(8,12);
+  // ── MAC helpers ──────────────────────────────────────────────
+  function toCisco(tag) {
+    if (!tag) return '—';
+    const r = tag.replace(/^NET-/i,'').toLowerCase();
+    if (r.length !== 12) return tag;
+    return r.slice(0,4)+'.'+r.slice(4,8)+'.'+r.slice(8,12);
   }
-
-  function toStandardMac(assetTag) {
-    if (!assetTag) return '—';
-    const raw = assetTag.replace(/^NET-/i, '').toLowerCase();
-    if (raw.length !== 12) return assetTag;
-    return raw.match(/.{2}/g).join(':');
+  function toStd(tag) {
+    if (!tag) return '—';
+    const r = tag.replace(/^NET-/i,'').toLowerCase();
+    if (r.length !== 12) return tag;
+    return r.match(/.{2}/g).join(':');
   }
-
-  function ipToNum(ip) {
+  function ipNum(ip) {
     if (!ip) return 0;
-    return ip.split('/')[0].split('.').reduce((acc, v) => acc * 256 + parseInt(v), 0);
+    return ip.split('/')[0].split('.').reduce((a,v)=>a*256+parseInt(v),0);
   }
 
-  function sortBy(key) {
-    sortAsc = (sortKey === key) ? !sortAsc : true;
-    sortKey = key;
-    filterTable();
+  // ── Lifecycle & Risk ─────────────────────────────────────────
+  const LC_DB = {
+    'TP-Link EP25 Smart Plug':         { lc:'Active',        risk: 20 },
+    'TP-Link Corporation Limited':     { lc:'Active',        risk: 20 },
+    'TP-Link Technologies Co., Ltd.':  { lc:'Active',        risk: 20 },
+    'Espressif Inc.':                  { lc:'Active',        risk: 25 },
+    'Lumi United Technology (Aqara/Xiaomi)': { lc:'Active',  risk: 20 },
+    'Beijing Roborock Technology Co., Ltd.': { lc:'Active',  risk: 15 },
+    'Lutron Electronics Co., Inc.':    { lc:'Active Mature', risk: 35 },
+    'Olibra LLC (Bond Bridge)':        { lc:'Active',        risk: 20 },
+    'Apple Inc.':                      { lc:'Active',        risk: 15 },
+    'Emporia Energy Monitor':          { lc:'Active',        risk: 25 },
+    'Hon Hai Precision Ind. (Foxconn)':{ lc:'Active Mature', risk: 40 },
+    'Dell Inc.':                       { lc:'Active Mature', risk: 35 },
+    'Action Star Enterprise Co., Ltd.':{ lc:'End of Sale',   risk: 55 },
+    'Bizlink Technology Inc.':         { lc:'Active',        risk: 20 },
+    'Microsoft Hyper-V (Virtual Machine)': { lc:'Active',   risk: 10 },
+    'Rockwell Automation':             { lc:'Active Mature', risk: 45 },
+    'Seiko Epson Corporation':         { lc:'Active Mature', risk: 30 },
+  };
+
+  function getLc(vendor) {
+    if (!vendor) return { lc:'Unknown', risk: 50 };
+    for (const [k,v] of Object.entries(LC_DB)) {
+      if (vendor.toLowerCase().includes(k.toLowerCase().split(' ')[0].toLowerCase())) return v;
+    }
+    return { lc:'Unknown', risk: 50 };
   }
 
-  function getTypeClass(t) {
+  function lcBadge(lc) {
+    const cls = lc==='Active'?'lc-active':lc==='Active Mature'?'lc-mature':lc==='End of Sale'?'lc-eos':lc==='Discontinued'?'lc-eol':'lc-unknown';
+    return `<span class="lc-badge ${cls}">${lc}</span>`;
+  }
+
+  function riskClass(r) { return r>=60?'risk-high':r>=35?'risk-med':'risk-low'; }
+
+  function actionRequired(lc, risk) {
+    if (lc==='Discontinued') return '🔴 Replace immediately';
+    if (lc==='End of Sale') return '🟡 Plan replacement';
+    if (lc==='Unknown') return '⚪ Identify & classify';
+    if (risk>=60) return '🟠 Review security';
+    return '✅ No action needed';
+  }
+
+  // ── Icons & Type ─────────────────────────────────────────────
+  function typeClass(t) {
     if (!t) return 'type-unknown';
-    if (t === 'PLC') return 'type-plc';
+    if (t==='PLC') return 'type-plc';
     if (t.includes('Network')) return 'type-network';
     if (t.includes('IoT')) return 'type-iot';
     if (t.includes('Endpoint')) return 'type-endpoint';
     return 'type-unknown';
   }
-
-  function getTypeShort(t) {
+  function typeShort(t) {
     if (!t) return 'Unknown';
-    if (t === 'PLC') return 'PLC';
+    if (t==='PLC') return 'PLC';
     return t.split('—')[0].trim();
   }
-
-  function getIcon(t) {
+  function icon(t) {
     if (!t) return '❓';
-    if (t === 'PLC') return '🔧';
-    if (t.includes('Router') || t.includes('Switch') || t.includes('Mesh')) return '🔀';
+    if (t==='PLC') return '🔧';
+    if (t.includes('Router')||t.includes('Switch')||t.includes('Mesh')) return '🔀';
     if (t.includes('Smart Plug')) return '🔌';
-    if (t.includes('ESP32') || t.includes('ESP8266')) return '📡';
+    if (t.includes('ESP')) return '📡';
     if (t.includes('Apple')) return '🍎';
-    if (t.includes('PC') || t.includes('Laptop')) return '💻';
+    if (t.includes('PC')||t.includes('Laptop')) return '💻';
     if (t.includes('Vacuum')) return '🤖';
     if (t.includes('Energy')) return '⚡';
     if (t.includes('Lighting')) return '💡';
@@ -197,157 +310,253 @@
     return '📦';
   }
 
-  function saveNote(id) {
-    const val = document.getElementById('note-' + id);
-    if (!val) return;
-    notes[id] = val.value;
-    try { localStorage.setItem('ot-notes', JSON.stringify(notes)); } catch(e) {}
-    filterTable();
-    alert('Note saved.');
+  // ── Tabs ─────────────────────────────────────────────────────
+  function showTab(name) {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+    document.getElementById('tab-'+name).classList.add('active');
+    event.target.classList.add('active');
+    if (name==='risk') renderRisk();
   }
 
-  function openWebUI(ip) {
-    if (confirm('Open web interface for ' + ip + '?\n\nNote: not all devices have a web UI.')) {
-      window.open('http://' + ip, '_blank');
-    }
-  }
-
+  // ── Load assets ───────────────────────────────────────────────
   async function loadAssets() {
     try {
-      const res = await fetch(API + '/assets');
-      const data = await res.json();
-      allAssets = data;
-      document.getElementById('api-status').textContent = 'Connected';
-      document.getElementById('api-status').className = 'badge';
-      document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+      const res = await fetch(API+'/assets');
+      allAssets = await res.json();
+      document.getElementById('api-status').textContent='Connected';
+      document.getElementById('api-status').className='badge';
+      document.getElementById('last-updated').textContent=new Date().toLocaleTimeString();
       updateCards();
       populateVendorFilter();
       filterTable();
     } catch(e) {
-      document.getElementById('api-status').textContent = 'Offline';
-      document.getElementById('api-status').className = 'badge badge-warn';
-      document.getElementById('asset-tbody').innerHTML = '<tr><td colspan="7" class="loading">Cannot connect to API at ' + API + '</td></tr>';
+      document.getElementById('api-status').textContent='Offline';
+      document.getElementById('api-status').className='badge badge-warn';
+      document.getElementById('asset-tbody').innerHTML='<tr><td colspan="8" class="loading">Cannot connect to '+API+'</td></tr>';
     }
   }
 
   function updateCards() {
-    const t = allAssets.length;
-    document.getElementById('total').textContent = t;
-    document.getElementById('online').textContent = t;
-    document.getElementById('unknown').textContent = allAssets.filter(a => !a.device_type || a.device_type.includes('Unknown')).length;
-    document.getElementById('network').textContent = allAssets.filter(a => a.device_type && a.device_type.includes('Network')).length;
-    document.getElementById('iot').textContent = allAssets.filter(a => a.device_type && a.device_type.includes('IoT')).length;
+    const eolCount = allAssets.filter(a=>['End of Sale','Discontinued'].includes(getLc(a.vendor).lc)).length;
+    document.getElementById('total').textContent=allAssets.length;
+    document.getElementById('online').textContent=allAssets.length;
+    document.getElementById('unknown').textContent=allAssets.filter(a=>!a.device_type||a.device_type.includes('Unknown')).length;
+    document.getElementById('network').textContent=allAssets.filter(a=>a.device_type&&a.device_type.includes('Network')).length;
+    document.getElementById('iot').textContent=allAssets.filter(a=>a.device_type&&a.device_type.includes('IoT')).length;
+    document.getElementById('eol').textContent=eolCount;
   }
 
   function populateVendorFilter() {
-    const vendors = [...new Set(allAssets.map(a => a.vendor).filter(Boolean))].sort();
-    document.getElementById('filter-vendor').innerHTML = '<option value="">All vendors</option>' +
-      vendors.map(v => '<option value="' + v + '">' + v.substring(0,35) + '</option>').join('');
+    const vendors=[...new Set(allAssets.map(a=>a.vendor).filter(Boolean))].sort();
+    document.getElementById('filter-vendor').innerHTML='<option value="">All vendors</option>'+
+      vendors.map(v=>`<option value="${v}">${v.substring(0,35)}</option>`).join('');
   }
 
+  // ── Inventory table ───────────────────────────────────────────
+  function sortBy(k) { sortAsc=(sortKey===k)?!sortAsc:true; sortKey=k; filterTable(); }
+
   function filterTable() {
-    const search = document.getElementById('search').value.toLowerCase();
-    const typeF = document.getElementById('filter-type').value;
-    const vendorF = document.getElementById('filter-vendor').value;
+    const s=document.getElementById('search').value.toLowerCase();
+    const tf=document.getElementById('filter-type').value;
+    const vf=document.getElementById('filter-vendor').value;
 
-    let filtered = allAssets.filter(a => {
-      const cisco = toCiscoMac(a.asset_tag);
-      const std = toStandardMac(a.asset_tag);
-      const matchS = !search ||
-        (a.ip_address||'').toLowerCase().includes(search) ||
-        cisco.toLowerCase().includes(search) ||
-        std.toLowerCase().includes(search) ||
-        (a.vendor||'').toLowerCase().includes(search) ||
-        (a.device_type||'').toLowerCase().includes(search);
-      const matchT = !typeF || (a.device_type||'').includes(typeF);
-      const matchV = !vendorF || a.vendor === vendorF;
-      return matchS && matchT && matchV;
+    let f=allAssets.filter(a=>{
+      const ip=(a.ip_address||'').replace('/32','');
+      const hostname=a.hostname||(a.asset_tag&&!a.asset_tag.startsWith('NET')?a.asset_tag:'');
+      const match=!s||(ip).includes(s)||toCisco(a.asset_tag).includes(s)||toStd(a.asset_tag).includes(s)||
+        (a.vendor||'').toLowerCase().includes(s)||(a.device_type||'').toLowerCase().includes(s)||
+        hostname.toLowerCase().includes(s);
+      return match&&(!tf||(a.device_type||'').includes(tf))&&(!vf||a.vendor===vf);
     });
 
-    filtered.sort((a, b) => {
-      let va = sortKey === 'ip_address' ? ipToNum(a.ip_address) : sortKey === 'mac' ? toCiscoMac(a.asset_tag) : (a[sortKey]||'');
-      let vb = sortKey === 'ip_address' ? ipToNum(b.ip_address) : sortKey === 'mac' ? toCiscoMac(b.asset_tag) : (b[sortKey]||'');
-      return sortAsc ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
+    f.sort((a,b)=>{
+      let va,vb;
+      if(sortKey==='ip'){va=ipNum(a.ip_address);vb=ipNum(b.ip_address);}
+      else if(sortKey==='mac'){va=toCisco(a.asset_tag);vb=toCisco(b.asset_tag);}
+      else if(sortKey==='hostname'){va=a.hostname||a.asset_tag||'';vb=b.hostname||b.asset_tag||'';}
+      else if(sortKey==='vendor'){va=a.vendor||'';vb=b.vendor||'';}
+      else if(sortKey==='type'){va=a.device_type||'';vb=b.device_type||'';}
+      else if(sortKey==='location'){va=a.location||'';vb=b.location||'';}
+      else{va='';vb='';}
+      return sortAsc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
     });
 
-    document.getElementById('result-count').textContent = 'Showing ' + filtered.length + ' of ' + allAssets.length + ' assets';
+    document.getElementById('result-count').textContent=`Showing ${f.length} of ${allAssets.length} assets`;
+    const tbody=document.getElementById('asset-tbody');
+    if(!f.length){tbody.innerHTML='<tr><td colspan="8" class="loading">No assets found</td></tr>';return;}
 
-    const tbody = document.getElementById('asset-tbody');
-    if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" class="loading">No assets found</td></tr>'; return; }
-
-    tbody.innerHTML = filtered.map(a => {
-      const ip = (a.ip_address||'').replace('/32','');
-      const cisco = toCiscoMac(a.asset_tag);
-      const hasNote = notes[a.id] && notes[a.id].trim().length > 0;
-      return '<tr class="' + (a.id === selectedId ? 'selected' : '') + '" onclick="selectAsset(' + a.id + ')">' +
-        '<td><span class="status-dot"></span></td>' +
-        '<td class="mono">' + ip + '</td>' +
-        '<td class="mono">' + cisco + '</td>' +
-        '<td>' + (a.vendor||'—') + '</td>' +
-        '<td><span class="type-badge ' + getTypeClass(a.device_type) + '">' + getTypeShort(a.device_type) + '</span></td>' +
-        '<td>' + (a.location||'—') + '</td>' +
-        '<td>' + (hasNote ? '<span class="note-icon">📝</span>' : '—') + '</td>' +
-        '</tr>';
+    tbody.innerHTML=f.map(a=>{
+      const ip=(a.ip_address||'').replace('/32','');
+      const hostname=a.hostname||(a.asset_tag&&!a.asset_tag.startsWith('NET-')?a.asset_tag:'—');
+      const hasNote=notes[a.id]&&notes[a.id].trim().length>0;
+      return `<tr class="${a.id===selectedId?'selected':''}" onclick="selectAsset(${a.id})">
+        <td><span class="status-dot"></span></td>
+        <td class="mono">${ip}</td>
+        <td class="mono">${toCisco(a.asset_tag)}</td>
+        <td>${hostname}</td>
+        <td>${a.vendor||'—'}</td>
+        <td><span class="type-badge ${typeClass(a.device_type)}">${typeShort(a.device_type)}</span></td>
+        <td>${a.location||'—'}</td>
+        <td>${hasNote?'📝':'—'}</td>
+      </tr>`;
     }).join('');
   }
 
   function selectAsset(id) {
-    selectedId = id;
-    const a = allAssets.find(x => x.id === id);
-    if (!a) return;
+    selectedId=id;
+    const a=allAssets.find(x=>x.id===id);
+    if(!a) return;
     filterTable();
-    const ip = (a.ip_address||'').replace('/32','');
-    const cisco = toCiscoMac(a.asset_tag);
-    const standard = toStandardMac(a.asset_tag);
-    const currentNote = notes[a.id] || '';
-    document.getElementById('detail-content').innerHTML =
-      '<div class="detail-icon">' + getIcon(a.device_type) + '</div>' +
-      '<div class="detail-name">' + (a.vendor||'Unknown device') + '</div>' +
-      '<div class="detail-subtype">' + (a.device_type||'Unknown type') + '</div>' +
-      '<div class="detail-section">Network</div>' +
-      '<div class="detail-row"><span class="detail-key">IP Address</span><span class="detail-val mono">' + ip + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">MAC Cisco</span><span class="detail-val mono">' + cisco + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">MAC Standard</span><span class="detail-val mono">' + standard + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">Protocol</span><span class="detail-val">' + (a.protocol||'—') + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">Location</span><span class="detail-val">' + (a.location||'—') + '</span></div>' +
-      '<div class="detail-section">Asset Info</div>' +
-      '<div class="detail-row"><span class="detail-key">Model</span><span class="detail-val">' + (a.model||'—') + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">Firmware</span><span class="detail-val">' + (a.firmware_version||'—') + '</span></div>' +
-      '<div class="detail-row"><span class="detail-key">First seen</span><span class="detail-val">' + (a.created_at ? new Date(a.created_at).toLocaleDateString() : '—') + '</span></div>' +
-      '<div class="detail-section">Notes</div>' +
-      '<textarea id="note-' + a.id + '" placeholder="Add notes about this device...">' + currentNote + '</textarea>' +
-      '<div class="btn-row">' +
-      '<button class="primary" onclick="saveNote(' + a.id + ')">💾 Save note</button>' +
-      '<button onclick="openWebUI(\'' + ip + '\')">🌐 Web UI</button>' +
-      '</div>';
+    const ip=(a.ip_address||'').replace('/32','');
+    const {lc,risk}=getLc(a.vendor);
+    const hostname=a.hostname||(a.asset_tag&&!a.asset_tag.startsWith('NET-')?a.asset_tag:'—');
+    document.getElementById('detail-content').innerHTML=
+      `<div class="detail-icon">${icon(a.device_type)}</div>
+      <div class="detail-name">${a.vendor||'Unknown'}</div>
+      <div class="detail-subtype">${a.device_type||'Unknown type'}</div>
+      <div class="detail-section">Network</div>
+      <div class="detail-row"><span class="detail-key">IP</span><span class="detail-val mono">${ip}</span></div>
+      <div class="detail-row"><span class="detail-key">MAC Cisco</span><span class="detail-val mono">${toCisco(a.asset_tag)}</span></div>
+      <div class="detail-row"><span class="detail-key">MAC Std</span><span class="detail-val mono">${toStd(a.asset_tag)}</span></div>
+      <div class="detail-row"><span class="detail-key">Hostname</span><span class="detail-val">${hostname}</span></div>
+      <div class="detail-row"><span class="detail-key">Protocol</span><span class="detail-val">${a.protocol||'—'}</span></div>
+      <div class="detail-row"><span class="detail-key">Location</span><span class="detail-val">${a.location||'—'}</span></div>
+      <div class="detail-section">Asset Info</div>
+      <div class="detail-row"><span class="detail-key">Model</span><span class="detail-val">${a.model||'—'}</span></div>
+      <div class="detail-row"><span class="detail-key">Firmware</span><span class="detail-val">${a.firmware_version||'—'}</span></div>
+      <div class="detail-row"><span class="detail-key">First seen</span><span class="detail-val">${a.created_at?new Date(a.created_at).toLocaleDateString():'—'}</span></div>
+      <div class="detail-section">Risk</div>
+      <div class="detail-row"><span class="detail-key">Lifecycle</span><span class="detail-val">${lcBadge(lc)}</span></div>
+      <div class="detail-row"><span class="detail-key">Risk score</span><span class="detail-val ${riskClass(risk)}">${risk}/100</span></div>
+      <div class="detail-section">Notes</div>
+      <textarea id="note-${a.id}" placeholder="Add notes...">${notes[a.id]||''}</textarea>
+      <div class="btn-row">
+        <button class="primary" onclick="saveNote(${a.id})">💾 Save note</button>
+        <button onclick="openWebUI('${ip}')">🌐 Web UI</button>
+      </div>`;
+  }
+
+  // ── Risk table ────────────────────────────────────────────────
+  function sortRisk(k){riskSortAsc=(riskSortKey===k)?!riskSortAsc:true;riskSortKey=k;renderRisk();}
+
+  function filterRisk() { renderRisk(); }
+
+  function renderRisk() {
+    const s=document.getElementById('risk-search').value.toLowerCase();
+    const lf=document.getElementById('risk-lc-filter').value;
+
+    let f=allAssets.map(a=>{
+      const {lc,risk}=getLc(a.vendor);
+      return {...a, lc, risk};
+    }).filter(a=>{
+      const ip=(a.ip_address||'').replace('/32','');
+      const match=!s||ip.includes(s)||(a.vendor||'').toLowerCase().includes(s)||(a.device_type||'').toLowerCase().includes(s)||toCisco(a.asset_tag).includes(s);
+      const lcMatch=!lf||a.lc===lf||(lf==='Discontinued'&&(a.lc==='Discontinued'||a.lc==='End of Life'));
+      return match&&lcMatch;
+    });
+
+    f.sort((a,b)=>{
+      let va,vb;
+      if(riskSortKey==='ip'){va=ipNum(a.ip_address);vb=ipNum(b.ip_address);}
+      else if(riskSortKey==='risk'){va=a.risk;vb=b.risk;}
+      else if(riskSortKey==='lc'){va=a.lc;vb=b.lc;}
+      else if(riskSortKey==='vendor'){va=a.vendor||'';vb=b.vendor||'';}
+      else if(riskSortKey==='mac'){va=toCisco(a.asset_tag);vb=toCisco(b.asset_tag);}
+      else{va='';vb='';}
+      return riskSortAsc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
+    });
+
+    document.getElementById('risk-count').textContent=`Showing ${f.length} assets`;
+    const tbody=document.getElementById('risk-tbody');
+    if(!f.length){tbody.innerHTML='<tr><td colspan="8" class="loading">No assets found</td></tr>';return;}
+
+    tbody.innerHTML=f.map(a=>{
+      const ip=(a.ip_address||'').replace('/32','');
+      return `<tr onclick="selectRiskAsset(${a.id})">
+        <td><span class="status-dot" style="background:${a.risk>=60?'#f44336':a.risk>=35?'#ff9800':'#4caf50'}"></span></td>
+        <td class="mono">${ip}</td>
+        <td class="mono">${toCisco(a.asset_tag)}</td>
+        <td>${a.vendor||'—'}</td>
+        <td><span class="type-badge ${typeClass(a.device_type)}">${typeShort(a.device_type)}</span></td>
+        <td>${lcBadge(a.lc)}</td>
+        <td><span class="${riskClass(a.risk)}">${a.risk}/100</span></td>
+        <td style="font-size:11px;">${actionRequired(a.lc,a.risk)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function selectRiskAsset(id) {
+    const a=allAssets.find(x=>x.id===id);
+    if(!a) return;
+    const {lc,risk}=getLc(a.vendor);
+    const ip=(a.ip_address||'').replace('/32','');
+    document.getElementById('risk-detail-content').innerHTML=
+      `<div class="detail-icon">${icon(a.device_type)}</div>
+      <div class="detail-name">${a.vendor||'Unknown'}</div>
+      <div class="detail-subtype">${a.device_type||'Unknown type'}</div>
+      <div class="detail-section">Identification</div>
+      <div class="detail-row"><span class="detail-key">IP</span><span class="detail-val mono">${ip}</span></div>
+      <div class="detail-row"><span class="detail-key">MAC</span><span class="detail-val mono">${toCisco(a.asset_tag)}</span></div>
+      <div class="detail-section">Lifecycle</div>
+      <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val">${lcBadge(lc)}</span></div>
+      <div class="detail-row"><span class="detail-key">Risk score</span><span class="detail-val ${riskClass(risk)}">${risk}/100</span></div>
+      <div class="detail-section">Recommendation</div>
+      <div style="font-size:12px;margin-top:6px;line-height:1.6;color:#444;">${getRecommendation(lc,risk,a.vendor)}</div>`;
+  }
+
+  function getRecommendation(lc,risk,vendor) {
+    if(lc==='Discontinued') return '🔴 This device is discontinued. Replace as soon as possible. No security patches available.';
+    if(lc==='End of Sale') return '🟡 This device is end of sale. Plan for replacement within 12-24 months. Limited support available.';
+    if(lc==='Active Mature') return '🔵 Device is in mature phase. Monitor for end-of-sale announcements. Consider upgrade planning.';
+    if(lc==='Active') return '✅ Device is actively supported. Ensure firmware is up to date.';
+    return '⚪ Lifecycle status unknown. Verify with vendor and classify manually.';
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function saveNote(id) {
+    const el=document.getElementById('note-'+id);
+    if(!el) return;
+    notes[id]=el.value;
+    try{localStorage.setItem('ot-notes',JSON.stringify(notes));}catch(e){}
+    filterTable();
+    document.getElementById('scan-status').textContent='✅ Note saved';
+    setTimeout(()=>document.getElementById('scan-status').textContent='',2000);
+  }
+
+  function openWebUI(ip) {
+    if(confirm('Open web interface for '+ip+'?\n\nNot all devices have a web UI.'))
+      window.open('http://'+ip,'_blank');
   }
 
   async function runScan() {
-    document.getElementById('scan-status').textContent = '⏳ Scanning...';
+    document.getElementById('scan-status').textContent='⏳ Scanning network...';
     try {
-      const res = await fetch(API + '/discovery/scan/quick');
-      const data = await res.json();
-      document.getElementById('scan-status').textContent = '✅ Found ' + data.devices_found + ' devices';
-      setTimeout(loadAssets, 1000);
+      const res=await fetch(API+'/discovery/scan/quick');
+      const data=await res.json();
+      document.getElementById('scan-status').textContent=`✅ Found ${data.devices_found} devices`;
+      setTimeout(loadAssets,1000);
     } catch(e) {
-      document.getElementById('scan-status').textContent = '❌ Scan failed';
+      document.getElementById('scan-status').textContent='❌ Scan failed — check network';
     }
   }
 
   function exportCSV() {
-    const headers = ['ID','IP Address','MAC Cisco','MAC Standard','Vendor','Device Type','Protocol','Location','Model','Firmware','Notes','First Seen'];
-    const rows = allAssets.map(a => [
-      a.id, (a.ip_address||'').replace('/32',''), toCiscoMac(a.asset_tag), toStandardMac(a.asset_tag),
-      a.vendor, a.device_type, a.protocol, a.location, a.model, a.firmware_version,
-      notes[a.id]||'', a.created_at
-    ]);
-    const csv = [headers,...rows].map(r => r.map(v => '"'+(v||'')+'"').join(',')).join('\n');
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-    link.download = 'ot-inventory-' + new Date().toISOString().split('T')[0] + '.csv';
+    const headers=['ID','IP','MAC Cisco','MAC Standard','Hostname','Vendor','Device Type','Protocol','Location','Model','Firmware','Lifecycle','Risk Score','Notes','First Seen'];
+    const rows=allAssets.map(a=>{
+      const {lc,risk}=getLc(a.vendor);
+      const ip=(a.ip_address||'').replace('/32','');
+      const hostname=a.hostname||(a.asset_tag&&!a.asset_tag.startsWith('NET-')?a.asset_tag:'');
+      return [a.id,ip,toCisco(a.asset_tag),toStd(a.asset_tag),hostname,a.vendor,a.device_type,a.protocol,a.location,a.model,a.firmware_version,lc,risk,notes[a.id]||'',a.created_at];
+    });
+    const csv=[headers,...rows].map(r=>r.map(v=>'"'+(v||'')+'"').join(',')).join('\n');
+    const link=document.createElement('a');
+    link.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    link.download='ot-inventory-'+new Date().toISOString().split('T')[0]+'.csv';
     link.click();
   }
 
+  // ── Init ──────────────────────────────────────────────────────
   loadAssets();
   setInterval(loadAssets, 60000);
 </script>
