@@ -18,18 +18,18 @@ OUI_LOOKUP = {
     "00:31:92": "TP-Link Corporation Limited",
     # TP-Link EP25 Smart Plugs
     "78:8c:b5": "TP-Link EP25 Smart Plug",
-    # TP-Link general
-    "68:ff:7b": "TP-Link Technologies Co., Ltd.",
-    # Espressif ESP32 / ESP8266 IoT modules
-    "48:55:19": "Espressif Inc.",
-    "48:e7:29": "Espressif Inc.",
-    "0c:8b:95": "Espressif Inc.",
-    "08:f9:e0": "Espressif Inc.",
-    "3c:61:05": "Espressif Inc.",
+    # TP-Link Smart Plug Double
+    "68:ff:7b": "TP-Link Smart Plug Double",
+    # Emporia Smart Plugs (ESP32 based)
+    "48:55:19": "Emporia Smart Plug",
+    "48:e7:29": "Emporia Smart Plug",
+    "0c:8b:95": "Emporia Smart Plug",
+    "08:f9:e0": "Emporia Smart Plug",
+    "3c:61:05": "Emporia Smart Plug",
+    "d8:bc:38": "Emporia Smart Plug",
+    "fc:f5:c4": "Emporia Smart Plug",
     # Lutron lighting control
     "00:0f:e7": "Lutron Electronics Co., Inc.",
-    # Emporia energy monitor
-    "b0:f2:f6": "Emporia Energy Monitor",
     # Roborock robot vacuum
     "b0:4a:39": "Beijing Roborock Technology Co., Ltd.",
     # Lumi / Aqara Zigbee gateway
@@ -38,6 +38,9 @@ OUI_LOOKUP = {
     "f4:4e:38": "Olibra LLC (Bond Bridge)",
     # Apple devices
     "04:99:b9": "Apple Inc.",
+    # Samsung devices
+    "8c:b8:4a": "Samsung Electronics",
+    "b0:f2:f6": "Samsung Electronics",
     # Dell computers
     "c8:15:4e": "Dell Inc.",
     # Hon Hai / Foxconn NICs
@@ -50,30 +53,36 @@ OUI_LOOKUP = {
     "00:15:5d": "Microsoft Hyper-V (Virtual Machine)",
     # Bizlink USB Ethernet
     "0c:37:96": "Bizlink Technology Inc.",
+    # Dyson smart home appliances
+    "c8:ff:77": "Dyson Limited",
 }
 
 # ── Device Type Classification ────────────────────────────────────────────
 DEVICE_TYPE_MAP = {
-    "TP-Link EP25":          "IoT — Smart Plug / Power Outlet",
-    "TP-Link":               "Network — Router / Switch / AP",
-    "Lutron":                "IoT — Lighting Control",
-    "Apple":                 "Endpoint — Apple Device",
-    "Espressif":             "IoT — ESP32/ESP8266 Module",
-    "Lumi":                  "IoT — Zigbee Gateway (Aqara)",
-    "Aqara":                 "IoT — Zigbee Gateway (Aqara)",
-    "Roborock":              "IoT — Robot Vacuum",
-    "Olibra":                "IoT — Bond Bridge (RF Control)",
-    "Bond":                  "IoT — Bond Bridge (RF Control)",
-    "Emporia":               "IoT — Energy Monitor",
-    "Epson":                 "Endpoint — Network Printer",
-    "Seiko Epson":           "Endpoint — Network Printer",
-    "Dell":                  "Endpoint — PC / Laptop",
-    "Hon Hai":               "Endpoint — PC / Laptop (Foxconn NIC)",
-    "Foxconn":               "Endpoint — PC / Laptop (Foxconn NIC)",
-    "Action Star":           "Network — USB Ethernet Adapter",
-    "Hyper-V":               "Virtual Machine (Lab)",
-    "Microsoft":             "Virtual Machine (Lab)",
-    "Bizlink":               "Network — USB Ethernet Adapter",
+     "TP-Link EP25":           "IoT — Smart Plug / Power Outlet",
+    "TP-Link Smart Plug":     "IoT — Smart Plug / Power Outlet",
+    "TP-Link":                "Network — Router / Switch / AP",
+    "Emporia Smart Plug":     "IoT — Smart Plug / Power Outlet",
+    "Emporia Energy Monitor": "IoT — Energy Monitor",
+    "Emporia":                "IoT — Energy Monitor",
+    "Lutron":                 "IoT — Lighting Control",
+    "Apple":                  "Endpoint — Apple Device",
+    "Samsung":                "Endpoint — Smart TV / Samsung Device",
+    "Lumi":                   "IoT — Zigbee Gateway (Aqara)",
+    "Aqara":                  "IoT — Zigbee Gateway (Aqara)",
+    "Roborock":               "IoT — Robot Vacuum",
+    "Olibra":                 "IoT — Bond Bridge (RF Control)",
+    "Bond":                   "IoT — Bond Bridge (RF Control)",
+    "Dyson":                  "IoT — Smart Home Appliance",
+    "Epson":                  "Endpoint — Network Printer",
+    "Seiko Epson":            "Endpoint — Network Printer",
+    "Dell":                   "Endpoint — PC / Laptop",
+    "Hon Hai":                "Endpoint — PC / Laptop (Foxconn NIC)",
+    "Foxconn":                "Endpoint — PC / Laptop (Foxconn NIC)",
+    "Action Star":            "Network — USB Ethernet Adapter",
+    "Hyper-V":                "Virtual Machine (Lab)",
+    "Microsoft":              "Virtual Machine (Lab)",
+    "Bizlink":                "Network — USB Ethernet Adapter",
 }
 
 
