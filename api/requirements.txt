@@ -1,0 +1,11 @@
+﻿fastapi
+uvicorn[standard]
+psycopg2-binary
+pydantic
+python-dotenv
+pymodbus
+cpppo
+asyncua
+httpx
+bcrypt
+python-jose

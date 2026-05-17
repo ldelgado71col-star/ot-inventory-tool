@@ -1,0 +1,310 @@
+﻿import os
+import psycopg2
+from fastapi import FastAPI, BackgroundTasks
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime, timezone
+
+app = FastAPI(
+    title="OT Inventory Tool API",
+    description="OT Network Asset Discovery and Inventory Platform",
+    version="0.2.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def get_connection():
+    return psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST", "db"),
+        port=os.getenv("POSTGRES_PORT", "5432"),
+        database=os.getenv("POSTGRES_DB", "ot_inventory"),
+        user=os.getenv("POSTGRES_USER", "otadmin"),
+        password=os.getenv("POSTGRES_PASSWORD", "OtLabPassword123")
+    )
+
+
+# ── Models ────────────────────────────────────────────────────────────────
+
+class AssetCreate(BaseModel):
+    asset_tag: str
+    vendor: Optional[str] = None
+    device_type: Optional[str] = None
+    model: Optional[str] = None
+    firmware_version: Optional[str] = None
+    ip_address: Optional[str] = None
+    mac_address: Optional[str] = None
+    protocol: Optional[str] = None
+    location: Optional[str] = None
+    hostname: Optional[str] = None
+
+class ObservationCreate(BaseModel):
+    asset_tag: str
+    parameter: str
+    value_text: Optional[str] = None
+    value_numeric: Optional[float] = None
+    source_protocol: Optional[str] = None
+    quality: Optional[str] = "good"
+
+class ScanRequest(BaseModel):
+    subnet: str = "192.168.2.0/24"
+    interface: str = "eth0"
+    retries: int = 5
+    timeout_ms: int = 1500
+
+
+# ── Health ────────────────────────────────────────────────────────────────
+
+@app.get("/health", tags=["Health"])
+def health():
+    return {"status": "ok", "service": "ot-inventory-api", "version": "0.2.0"}
+
+
+# ── Assets ────────────────────────────────────────────────────────────────
+
+@app.get("/assets", tags=["Assets"])
+def list_assets():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+            id, asset_tag, vendor, device_type, model,
+            firmware_version, ip_address::text, protocol,
+            location, created_at
+        FROM assets
+        ORDER BY id;
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {
+            "id": row[0],
+            "asset_tag": row[1],
+            "vendor": row[2],
+            "device_type": row[3],
+            "model": row[4],
+            "firmware_version": row[5],
+            "ip_address": row[6],
+            "protocol": row[7],
+            "location": row[8],
+            "created_at": row[9]
+        }
+        for row in rows
+    ]
+
+
+@app.post("/assets", tags=["Assets"])
+def create_asset(asset: AssetCreate):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO assets (
+            asset_tag, vendor, device_type, model,
+            firmware_version, ip_address, protocol, location
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (asset_tag)
+        DO UPDATE SET
+            vendor = EXCLUDED.vendor,
+            device_type = EXCLUDED.device_type,
+            model = EXCLUDED.model,
+            firmware_version = EXCLUDED.firmware_version,
+            ip_address = EXCLUDED.ip_address,
+            protocol = EXCLUDED.protocol,
+            location = EXCLUDED.location
+        RETURNING id;
+    """, (
+        asset.asset_tag, asset.vendor, asset.device_type, asset.model,
+        asset.firmware_version, asset.ip_address, asset.protocol, asset.location
+    ))
+    asset_id = cur.fetchone()[0]
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"status": "saved", "id": asset_id, "asset_tag": asset.asset_tag}
+
+
+# ── Discovery ─────────────────────────────────────────────────────────────
+
+def _run_scan_and_save(subnet: str, interface: str, retries: int, timeout_ms: int):
+    """Background task — runs ARP scan and saves results to database."""
+    try:
+        import sys
+        sys.path.insert(0, "/app")
+        from app.modules.discovery.discovery_service import DiscoveryService
+
+        svc = DiscoveryService()
+        devices = svc.run_arp_scan(
+            subnet=subnet,
+            interface=interface,
+            retries=retries,
+            timeout_ms=timeout_ms
+        )
+
+        conn = get_connection()
+        cur = conn.cursor()
+        saved = 0
+
+        for d in devices:
+            mac_clean = d.get("mac", "").replace(":", "").upper()
+            asset_tag = f"NET-{mac_clean}"
+            cur.execute("""
+                INSERT INTO assets (asset_tag, vendor, device_type, ip_address, protocol, location)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (asset_tag)
+                DO UPDATE SET
+                    ip_address = EXCLUDED.ip_address,
+                    vendor = EXCLUDED.vendor,
+                    device_type = EXCLUDED.device_type
+            """, (
+                asset_tag,
+                d.get("vendor", "Unknown"),
+                d.get("device_type", "Unknown"),
+                d.get("ip", ""),
+                "ARP",
+                "Network"
+            ))
+            saved += 1
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"[scan] Saved {saved} assets from {subnet}")
+
+    except Exception as e:
+        print(f"[scan] Error: {e}")
+
+
+@app.post("/discovery/scan", tags=["Discovery"])
+def trigger_scan(request: ScanRequest, background_tasks: BackgroundTasks):
+    """
+    Trigger an ARP scan on the specified subnet.
+    Runs in background — results saved automatically to asset database.
+    """
+    background_tasks.add_task(
+        _run_scan_and_save,
+        subnet=request.subnet,
+        interface=request.interface,
+        retries=request.retries,
+        timeout_ms=request.timeout_ms
+    )
+    return {
+        "status": "scan started",
+        "subnet": request.subnet,
+        "interface": request.interface,
+        "message": "Scan running in background. Check /assets for results."
+    }
+
+
+@app.get("/discovery/scan/quick", tags=["Discovery"])
+def quick_scan():
+    """Run a quick ARP scan on the default subnet and return results immediately."""
+    try:
+        import sys
+        sys.path.insert(0, "/app")
+        from app.modules.discovery.discovery_service import DiscoveryService
+
+        svc = DiscoveryService()
+        devices = svc.run_arp_scan(
+            subnet="192.168.2.0/24",
+            interface="eth0",
+            retries=3,
+            timeout_ms=1000
+        )
+        return {"status": "ok", "devices_found": len(devices), "devices": devices}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+# ── Observations ──────────────────────────────────────────────────────────
+
+@app.post("/observations", tags=["Observations"])
+def create_observation(obs: ObservationCreate):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO asset_observations (
+            time, asset_tag, parameter, value_text,
+            value_numeric, source_protocol, quality
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s);
+    """, (
+        datetime.now(timezone.utc),
+        obs.asset_tag, obs.parameter, obs.value_text,
+        obs.value_numeric, obs.source_protocol, obs.quality
+    ))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"status": "saved", "asset_tag": obs.asset_tag, "parameter": obs.parameter}
+
+
+@app.get("/observations/{asset_tag}", tags=["Observations"])
+def list_observations(asset_tag: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT time, asset_tag, parameter, value_text,
+               value_numeric, source_protocol, quality
+        FROM asset_observations
+        WHERE asset_tag = %s
+        ORDER BY time DESC
+        LIMIT 100;
+    """, (asset_tag,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {
+            "time": row[0], "asset_tag": row[1], "parameter": row[2],
+            "value_text": row[3], "value_numeric": row[4],
+            "source_protocol": row[5], "quality": row[6]
+        }
+        for row in rows
+    ]
+app.mount("/static", StaticFiles(directory="/app/app/static"), name="static")
+
+@app.get("/", include_in_schema=False)
+def dashboard():
+    return FileResponse("/app/app/static/index.html")
+
+
+# ── Authentication endpoints ──────────────────────────────────
+from app.auth import authenticate_user, create_token, verify_token
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.post("/auth/login", tags=["Auth"])
+def login(credentials: dict):
+    username = credentials.get("username", "")
+    password = credentials.get("password", "")
+    user = authenticate_user(username, password)
+    if not user:
+        return JSONResponse(status_code=401, content={"error": "Invalid username or password"})
+    token = create_token(user["username"], user["role"])
+    return {
+        "token": token,
+        "username": user["username"],
+        "role": user["role"],
+        "full_name": user["full_name"]
+    }
+
+@app.get("/auth/verify", tags=["Auth"])
+def verify(request: Request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"error": "No token"})
+    token = auth.replace("Bearer ", "")
+    payload = verify_token(token)
+    if not payload:
+        return JSONResponse(status_code=401, content={"error": "Invalid or expired token"})
+    return {"username": payload["sub"], "role": payload["role"]}
