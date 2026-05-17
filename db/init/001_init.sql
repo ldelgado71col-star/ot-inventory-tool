@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS assets (
     ip_address INET,
     protocol VARCHAR(50),
     location VARCHAR(150),
+    hostname VARCHAR(200),
+    open_ports VARCHAR(200),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

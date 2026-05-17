@@ -78,7 +78,7 @@ def list_assets():
         SELECT
             id, asset_tag, vendor, device_type, model,
             firmware_version, ip_address::text, protocol,
-            location, created_at
+            location, created_at, hostname, open_ports
         FROM assets
         ORDER BY id;
     """)
@@ -96,7 +96,9 @@ def list_assets():
             "ip_address": row[6],
             "protocol": row[7],
             "location": row[8],
-            "created_at": row[9]
+            "created_at": row[9],
+            "hostname": row[10],
+            "open_ports": row[11]
         }
         for row in rows
     ]
@@ -136,53 +138,52 @@ def create_asset(asset: AssetCreate):
 # ── Discovery ─────────────────────────────────────────────────────────────
 
 def _run_scan_and_save(subnet: str, interface: str, retries: int, timeout_ms: int):
-    """Background task — runs ARP scan and saves results to database."""
+    """Background task — runs full discovery and saves results to database."""
     try:
         import sys
         sys.path.insert(0, "/app")
         from app.modules.discovery.discovery_service import DiscoveryService
-
         svc = DiscoveryService()
-        devices = svc.run_arp_scan(
-            subnet=subnet,
-            interface=interface,
-            retries=retries,
-            timeout_ms=timeout_ms
-        )
-
+        devices = svc.run_full_discovery(subnet=subnet, interface=interface)
         conn = get_connection()
         cur = conn.cursor()
         saved = 0
-
         for d in devices:
             mac_clean = d.get("mac", "").replace(":", "").upper()
             asset_tag = f"NET-{mac_clean}"
+            open_ports = d.get("open_ports", [])
+            ports_str = ",".join(str(p) for p in open_ports) if open_ports else None
+            hostname = d.get("hostname") or None
             cur.execute("""
-                INSERT INTO assets (asset_tag, vendor, device_type, ip_address, protocol, location)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO assets (
+                    asset_tag, vendor, device_type, ip_address,
+                    hostname, protocol, location, open_ports
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (asset_tag)
                 DO UPDATE SET
                     ip_address = EXCLUDED.ip_address,
                     vendor = EXCLUDED.vendor,
-                    device_type = EXCLUDED.device_type
+                    device_type = EXCLUDED.device_type,
+                    hostname = EXCLUDED.hostname,
+                    open_ports = EXCLUDED.open_ports
             """, (
                 asset_tag,
                 d.get("vendor", "Unknown"),
                 d.get("device_type", "Unknown"),
                 d.get("ip", ""),
+                hostname,
                 "ARP",
-                "Network"
+                "Network",
+                ports_str
             ))
             saved += 1
-
         conn.commit()
         cur.close()
         conn.close()
         print(f"[scan] Saved {saved} assets from {subnet}")
-
     except Exception as e:
         print(f"[scan] Error: {e}")
-
 
 @app.post("/discovery/scan", tags=["Discovery"])
 def trigger_scan(request: ScanRequest, background_tasks: BackgroundTasks):

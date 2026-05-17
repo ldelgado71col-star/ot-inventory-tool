@@ -168,6 +168,7 @@ class DiscoveryService:
             targets = [device["ip"] for device in arp_results]
 
             nmap_results = self.run_nmap_scan(targets)
+            hostname_results = self.run_hostname_resolution(targets)
 
             for device in arp_results:
                 ip = device["ip"]
@@ -175,6 +176,7 @@ class DiscoveryService:
                 enriched_device["open_ports"] = []
                 enriched_device["services"] = {}
                 enriched_device["http_banners"] = {}
+                enriched_device["hostname"] = hostname_results.get(ip, "")
 
                 if ip in nmap_results:
                     enriched_device["open_ports"] = nmap_results[ip].get("open_ports", [])
@@ -203,4 +205,33 @@ class DiscoveryService:
         except Exception:
             pass
 
+        return results
+
+    def run_hostname_resolution(self, targets: list[str]) -> dict:
+        """
+        Resolve hostnames for a list of IPs using nmap -sn -R.
+        Safe for OT — no port scan, ping only + DNS reverse lookup.
+        Returns dict keyed by IP with 'hostname'.
+        """
+        results = {}
+        if not targets:
+            return results
+        try:
+            cmd = [
+                "nmap", "-sn", "-R",
+                "--host-timeout", "3s",
+                "--max-retries", "1"
+            ] + targets
+            process = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            current_ip = None
+            for line in process.stdout.splitlines():
+                ip_match = re.search(r'(\d{1,3}(?:\.\d{1,3}){3})', line)
+                if "Nmap scan report for" in line:
+                    if ip_match:
+                        current_ip = ip_match.group(1)
+                    host_match = re.search(r'for\s+(\S+)\s+\(', line)
+                    if host_match and current_ip:
+                        results[current_ip] = host_match.group(1)
+        except Exception:
+            pass
         return results
