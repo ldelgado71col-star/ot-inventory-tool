@@ -169,6 +169,8 @@ class DiscoveryService:
 
             nmap_results = self.run_nmap_scan(targets)
             hostname_results = self.run_hostname_resolution(targets)
+            mdns_results = self.run_mdns_scan(targets)
+            netbios_results = self.run_netbios_scan(subnet)
 
             for device in arp_results:
                 ip = device["ip"]
@@ -176,7 +178,7 @@ class DiscoveryService:
                 enriched_device["open_ports"] = []
                 enriched_device["services"] = {}
                 enriched_device["http_banners"] = {}
-                enriched_device["hostname"] = hostname_results.get(ip, "")
+                enriched_device["hostname"] = (mdns_results.get(ip) or netbios_results.get(ip) or hostname_results.get(ip, "") or "")
 
                 if ip in nmap_results:
                     enriched_device["open_ports"] = nmap_results[ip].get("open_ports", [])
@@ -234,4 +236,73 @@ class DiscoveryService:
                         results[current_ip] = host_match.group(1)
         except Exception:
             pass
+        return results
+
+    def run_mdns_scan(self, targets: list[str], timeout: float = 3.0) -> dict:
+        """
+        Resolve mDNS hostnames (.local) for a list of IPs using zeroconf.
+        Safe for OT — passive multicast listener only.
+        Returns dict keyed by IP with hostname.
+        """
+        results = {}
+        try:
+            from zeroconf import Zeroconf, ServiceBrowser, ServiceListener
+            import threading
+            import socket
+
+            zc = Zeroconf()
+            found = {}
+            lock = threading.Lock()
+
+            class Listener(ServiceListener):
+                def add_service(self, zc, type_, name):
+                    info = zc.get_service_info(type_, name)
+                    if info:
+                        for addr in info.parsed_addresses():
+                            if addr in targets:
+                                with lock:
+                                    found[addr] = info.server.rstrip(".")
+
+                def update_service(self, zc, type_, name):
+                    self.add_service(zc, type_, name)
+
+                def remove_service(self, zc, type_, name):
+                    pass
+
+            services = ["_http._tcp.local.", "_workstation._tcp.local.",
+                       "_device-info._tcp.local.", "_services._dns-sd._udp.local."]
+            browsers = []
+            for s in services:
+                try:
+                    browsers.append(ServiceBrowser(zc, s, Listener()))
+                except Exception:
+                    pass
+            import time
+            time.sleep(timeout)
+            zc.close()
+            results = found
+        except Exception as e:
+            print(f"[mdns] Error: {e}")
+        return results
+
+    def run_netbios_scan(self, subnet: str) -> dict:
+        """
+        Resolve NetBIOS names using nbtscan.
+        Captures Windows workstation names common in OT environments.
+        Returns dict keyed by IP with hostname.
+        """
+        results = {}
+        try:
+            cmd = ["nbtscan", "-q", subnet]
+            process = subprocess.run(cmd, capture_output=True, text=True,
+                                   check=False, timeout=30)
+            for line in process.stdout.splitlines():
+                parts = line.split()
+                if len(parts) >= 2:
+                    ip = parts[0].strip()
+                    name = parts[1].strip()
+                    if ip and name and name not in ["<unknown>", "WORKGROUP"]:
+                        results[ip] = name
+        except Exception as e:
+            print(f"[netbios] Error: {e}")
         return results

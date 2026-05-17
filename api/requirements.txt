@@ -9,3 +9,4 @@ asyncua
 httpx
 bcrypt
 python-jose
+zeroconf
