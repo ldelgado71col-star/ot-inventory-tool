@@ -66,7 +66,7 @@ class DiscoveryService:
             return results
 
         try:
-            cmd = ["nmap", "-sV", "-p", ports, "-oG", "-"] + targets
+            cmd = ["nmap", "-T4", "--open", "-p", ports, "--host-timeout", "10s", "--max-retries", "1", "-oG", "-"] + targets
             process = subprocess.run(cmd, capture_output=True, text=True, check=False)
             output = process.stdout
 
@@ -150,42 +150,61 @@ class DiscoveryService:
     def run_full_discovery(self, subnet: str, interface: str = "eth0") -> list[dict]:
         """
         Run all discovery methods and return an enriched device list combining results.
-
-        Args:
-            subnet (str): The subnet to scan.
-            interface (str): The network interface to use.
-
-        Returns:
-            list[dict]: Enriched list of devices.
+        v0.4.0 — Now calls classify_device_enriched() using vendor + ports + banners.
         """
         results = []
         try:
-            arp_results = self.run_arp_scan(subnet, interface=interface)
+            # Import enriched classifier
+            from app.modules.discovery.arp_scanner import (
+                resolve_vendor,
+                classify_device_enriched,
+                is_locally_administered,
+                OUI_LOOKUP,
+            )
 
+            arp_results = self.run_arp_scan(subnet, interface=interface)
             if not arp_results:
                 return results
 
             targets = [device["ip"] for device in arp_results]
 
-            nmap_results = self.run_nmap_scan(targets)
+            nmap_results     = self.run_nmap_scan(targets)
             hostname_results = self.run_hostname_resolution(targets)
-            mdns_results = self.run_mdns_scan(targets)
-            netbios_results = self.run_netbios_scan(subnet)
+            try:
+                mdns_results = self.run_mdns_scan(targets)
+            except Exception as e:
+                print(f"[mdns] Skipped due to error: {e}")
+                mdns_results = {}
+            netbios_results  = self.run_netbios_scan(subnet)
 
             for device in arp_results:
-                ip = device["ip"]
-                enriched_device = dict(device)
-                enriched_device["open_ports"] = []
-                enriched_device["services"] = {}
-                enriched_device["http_banners"] = {}
-                enriched_device["hostname"] = (mdns_results.get(ip) or netbios_results.get(ip) or hostname_results.get(ip, "") or "")
+                ip  = device["ip"]
+                mac = device["mac"].lower()
 
+                # Resolve vendor (OUI table first, then arp-scan string)
+                oui = mac[:8].lower()
+                vendor = OUI_LOOKUP.get(oui, device.get("vendor", ""))
+                if not vendor or "unknown" in vendor.lower():
+                    vendor = device.get("vendor", f"Unknown OUI: {oui}")
+
+                # Collect open ports from nmap
+                open_ports = []
+                services   = {}
                 if ip in nmap_results:
-                    enriched_device["open_ports"] = nmap_results[ip].get("open_ports", [])
-                    enriched_device["services"] = nmap_results[ip].get("services", {})
+                    open_ports = nmap_results[ip].get("open_ports", [])
+                    services   = nmap_results[ip].get("services", {})
 
+                # Resolve hostname (priority: mDNS > NetBIOS > DNS reverse)
+                hostname = (
+                    mdns_results.get(ip)
+                    or netbios_results.get(ip)
+                    or hostname_results.get(ip, "")
+                    or ""
+                )
+
+                # Grab HTTP banners from open web ports
                 http_ports_to_try = [80, 443, 8080]
-                for p in enriched_device.get("open_ports", []):
+                for p in open_ports:
                     try:
                         port_num = int(p)
                         if port_num not in http_ports_to_try:
@@ -193,19 +212,46 @@ class DiscoveryService:
                     except ValueError:
                         pass
 
-                http_results = self.grab_http_banner(ip, ports=http_ports_to_try)
+                try:
+                    http_results = self.grab_http_banner(ip, ports=http_ports_to_try)
+                    http_banners = {
+                        port: data
+                        for port, data in http_results.items()
+                        if data.get("status_code") is not None
+                    }
+                except Exception as e:
+                    print(f"[http] Skipped {ip}: {e}")
+                    http_banners = {}
 
-                successful_banners = {}
-                for port, data in http_results.items():
-                    if data.get("status_code") is not None:
-                        successful_banners[port] = data
+                # ── ENRICHED CLASSIFICATION ───────────────────────────────
+                # Priority: OT ports > HTTP banner > vendor name
+                device_type, classification_source = classify_device_enriched(
+                    vendor=vendor,
+                    open_ports=open_ports,
+                    http_banners=http_banners,
+                    hostname=hostname,
+                )
+                # ─────────────────────────────────────────────────────────
 
-                enriched_device["http_banners"] = successful_banners
+                enriched_device = {
+                    "ip":                    ip,
+                    "mac":                   mac,
+                    "vendor":                vendor,
+                    "device_type":           device_type,
+                    "classification_source": classification_source,
+                    "open_ports":            open_ports,
+                    "services":              services,
+                    "http_banners":          http_banners,
+                    "hostname":              hostname,
+                }
 
                 results.append(enriched_device)
+                print(f"[classify] {ip} → {device_type} [{classification_source}]")
 
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[discovery] Error in run_full_discovery: {e}")
+            import traceback
+            traceback.print_exc()
 
         return results
 
@@ -243,7 +289,9 @@ class DiscoveryService:
         Resolve mDNS hostnames (.local) for a list of IPs using zeroconf.
         Safe for OT — passive multicast listener only.
         Returns dict keyed by IP with hostname.
+        TEMPORARILY DISABLED — zeroconf BadTypeInNameException in thread.
         """
+        return {}
         results = {}
         try:
             from zeroconf import Zeroconf, ServiceBrowser, ServiceListener

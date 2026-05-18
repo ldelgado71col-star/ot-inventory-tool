@@ -3,6 +3,8 @@
 arp_scanner.py — OT/Home Network ARP Discovery Module
 Scans subnet, identifies vendors, classifies device types.
 MAC address is the primary identifier — not IP (DHCP changes IPs).
+
+v0.4.0 — Port-aware classification added (OT protocol detection)
 """
 
 import re
@@ -52,7 +54,7 @@ OUI_LOOKUP = {
     "0c:37:96": "Bizlink Technology Inc.",
 }
 
-# ── Device Type Classification ────────────────────────────────────────────
+# ── Vendor → Device Type (base classification by vendor name) ─────────────
 DEVICE_TYPE_MAP = {
     "TP-Link EP25":          "IoT — Smart Plug / Power Outlet",
     "TP-Link":               "Network — Router / Switch / AP",
@@ -67,22 +69,222 @@ DEVICE_TYPE_MAP = {
     "Emporia":               "IoT — Energy Monitor",
     "Epson":                 "Endpoint — Network Printer",
     "Seiko Epson":           "Endpoint — Network Printer",
-    "Dell":                  "Endpoint — PC / Laptop",
-    "Hon Hai":               "Endpoint — PC / Laptop (Foxconn NIC)",
-    "Foxconn":               "Endpoint — PC / Laptop (Foxconn NIC)",
+    "Dell":                  "Endpoint — PC / Workstation",
+    "Hon Hai":               "Endpoint — PC / Workstation (Foxconn NIC)",
+    "Foxconn":               "Endpoint — PC / Workstation (Foxconn NIC)",
     "Action Star":           "Network — USB Ethernet Adapter",
     "Hyper-V":               "Virtual Machine (Lab)",
     "Microsoft":             "Virtual Machine (Lab)",
     "Bizlink":               "Network — USB Ethernet Adapter",
+    "Samsung":               "Endpoint — PC / Workstation (Samsung)",
+    "SAMSUNG":               "Endpoint — PC / Workstation (Samsung)",
+    "Dyson":                 "IoT — Smart Appliance (Dyson)",
+    "Haier":                 "IoT — Smart Appliance",
+    "Philips":               "IoT — Smart Lighting / Appliance",
+    "Belkin":                "IoT — Smart Plug / WiFi Adapter",
+    "Netgear":               "Network — Router / Switch (Netgear)",
+    "Ubiquiti":              "Network — UniFi AP / Switch (Ubiquiti)",
+    # OT vendors — for when they appear via OUI in the future
+    "Rockwell":              "OT — PLC / Controller (Allen-Bradley)",
+    "Allen-Bradley":         "OT — PLC / Controller (Allen-Bradley)",
+    "Siemens":               "OT — PLC / HMI (Siemens)",
+    "Schneider":             "OT — PLC / RTU (Schneider Electric)",
+    "ABB":                   "OT — Controller / Drive (ABB)",
+    "Beckhoff":              "OT — IPC / Controller (Beckhoff)",
+    "Moxa":                  "OT — Serial Gateway / Switch (Moxa)",
+    "Advantech":             "OT — Industrial PC / Gateway (Advantech)",
+    "Phoenix Contact":       "OT — I/O Module / Gateway (Phoenix Contact)",
+    "Wago":                  "OT — PLC / I/O Controller (Wago)",
+    "Emerson":               "OT — Controller / RTU (Emerson)",
+    "Honeywell":             "OT — Controller / DCS (Honeywell)",
+}
+
+# ── OT Protocol Port Map ──────────────────────────────────────────────────
+# Maps open TCP/UDP ports to OT protocol classification
+# Priority: OT protocols override vendor-based classification
+OT_PORT_MAP = {
+    "502":   "OT — Modbus TCP Device",
+    "44818": "OT — EtherNet/IP Device (Rockwell / Generic CIP)",
+    "2222":  "OT — EtherNet/IP Device (EtherNet/IP implicit)",
+    "102":   "OT — S7 / PROFINET Device (Siemens)",
+    "4840":  "OT — OPC UA Server",
+    "20000": "OT — DNP3 Device",
+    "47808": "OT — BACnet/IP Device (Building Automation)",
+    "1911":  "OT — Niagara Fox / Tridium (BAS / HVAC)",
+    "4911":  "OT — Niagara Fox / Tridium TLS",
+    "9600":  "OT — OMRON FINS Device",
+    "18245": "OT — GE SRTP Device",
+    "2404":  "OT — IEC 60870-5-104 Device",
+    "4000":  "OT — Emerson DeltaV / HART-IP",
+    "161":   "Network — SNMP Device (Managed Switch / Gateway)",
+    "162":   "Network — SNMP Trap Receiver",
+    "21":    "Endpoint — FTP Service (Legacy / HMI)",
+    "23":    "Endpoint — Telnet Service (Legacy Device)",
+    "3389":  "Endpoint — Remote Desktop (Windows / HMI)",
+    "5900":  "Endpoint — VNC Remote Access",
+    "1433":  "Endpoint — SQL Server (Historian / SCADA DB)",
+    "1521":  "Endpoint — Oracle Database (Historian / SCADA)",
+    "8080":  "Endpoint — Web Interface (HMI / Gateway)",
+    "8443":  "Endpoint — Secure Web Interface (HMI / Gateway)",
+    "554":   "IoT — RTSP Camera Stream",
+    "1883":  "IoT — MQTT Broker (IoT / IIoT Gateway)",
+    "8883":  "IoT — MQTT Broker TLS",
+    "22":    None,   # SSH — not enough to reclassify, used as enrichment
+    "80":    None,   # HTTP — not enough to reclassify alone
+    "443":   None,   # HTTPS — not enough to reclassify alone
+}
+
+# ── HTTP Banner → Device Type hints ──────────────────────────────────────
+# If HTTP title or Server header contains these strings → override device type
+HTTP_BANNER_MAP = {
+    "RouterOS":         "Network — MikroTik Router",
+    "UniFi":            "Network — Ubiquiti UniFi AP / Switch",
+    "Cisco":            "Network — Cisco Device",
+    "AXIS":             "IoT — AXIS Network Camera",
+    "Hikvision":        "IoT — Hikvision IP Camera",
+    "Dahua":            "IoT — Dahua IP Camera",
+    "FactoryTalk":      "OT — Rockwell FactoryTalk HMI",
+    "WinCC":            "OT — Siemens WinCC SCADA / HMI",
+    "Ignition":         "OT — Inductive Automation Ignition SCADA",
+    "Wonderware":       "OT — AVEVA Wonderware HMI / Historian",
+    "Kepware":          "OT — PTC Kepware OPC Server",
+    "iSMA":             "OT — iSMA BACnet Controller",
+    "Tridium":          "OT — Tridium Niagara BAS Controller",
+    "Echelon":          "OT — Echelon LonWorks Controller",
+    "Moxa":             "OT — Moxa Serial Gateway / Switch",
+    "QNAP":             "Endpoint — QNAP NAS",
+    "Synology":         "Endpoint — Synology NAS",
+    "pfSense":          "Network — pfSense Firewall / Router",
+    "OPNsense":         "Network — OPNsense Firewall / Router",
+    "Proxmox":          "Endpoint — Proxmox Hypervisor",
+    "ESXi":             "Endpoint — VMware ESXi Hypervisor",
+    "TrueNAS":          "Endpoint — TrueNAS Storage Server",
+    "Pi-hole":          "Network — Pi-hole DNS / Ad Filter",
+    "Home Assistant":   "IoT — Home Assistant Hub",
+    "Lutron":           "IoT — Lutron Lighting Control",
+    "TP-LINK":          "Network — TP-Link Router / AP",
 }
 
 
+def classify_by_ports(open_ports: list) -> str | None:
+    """
+    Classify device type based on open ports.
+    OT protocol ports take priority over generic ports.
+    Returns classification string or None if no match.
+
+    Priority order:
+    1. OT industrial protocols (502, 44818, 102, etc.)
+    2. Building automation (47808, 1911)
+    3. Network management (161)
+    4. Legacy/risky services (23, 21)
+    5. Generic services (None — no reclassification)
+    """
+    if not open_ports:
+        return None
+
+    ports_set = set(str(p) for p in open_ports)
+
+    # Check in priority order (OT ports first)
+    priority_order = [
+        "502", "44818", "2222", "102", "4840", "20000",
+        "47808", "1911", "4911", "9600", "18245", "2404", "4000",
+        "161", "162", "23", "21", "3389", "5900",
+        "1433", "1521", "554", "1883", "8883",
+        "8080", "8443",
+    ]
+
+    for port in priority_order:
+        if port in ports_set:
+            result = OT_PORT_MAP.get(port)
+            if result:  # None means "not enough to reclassify"
+                return result
+
+    return None
+
+
+def classify_by_http_banner(http_banners: dict) -> str | None:
+    """
+    Classify device type based on HTTP banner (title + server header).
+    Returns classification string or None if no match.
+    http_banners: dict keyed by port, each with 'title' and 'server' keys.
+    """
+    if not http_banners:
+        return None
+
+    # Combine all titles and server headers into one searchable string
+    combined = ""
+    for port_data in http_banners.values():
+        if isinstance(port_data, dict):
+            title = port_data.get("title") or ""
+            server = port_data.get("server") or ""
+            combined += f" {title} {server}"
+
+    combined = combined.lower()
+
+    for keyword, dtype in HTTP_BANNER_MAP.items():
+        if keyword.lower() in combined:
+            return dtype
+
+    return None
+
+
 def classify_device(vendor: str) -> str:
-    """Classify device type based on vendor name."""
+    """
+    Classify device type based on vendor name only.
+    Used as base classification — may be overridden by port/banner analysis.
+    """
     for key, dtype in DEVICE_TYPE_MAP.items():
         if key.lower() in vendor.lower():
             return dtype
     return "Unknown — Classify manually"
+
+
+def classify_device_enriched(
+    vendor: str,
+    open_ports: list = None,
+    http_banners: dict = None,
+    hostname: str = "",
+) -> tuple[str, str]:
+    """
+    Full classification using vendor + ports + HTTP banners.
+    Returns (device_type, classification_source) tuple.
+
+    Classification priority (highest to lowest):
+    1. OT protocol port detection  → most reliable for OT devices
+    2. HTTP banner / web title      → good for HMIs, gateways, cameras
+    3. Vendor name (OUI lookup)     → reliable for known vendors
+    4. Unknown fallback
+
+    Args:
+        vendor:       Resolved vendor string from OUI lookup or arp-scan
+        open_ports:   List of open port numbers as strings ['80', '502']
+        http_banners: Dict from grab_http_banner() keyed by port number
+        hostname:     mDNS / NetBIOS / DNS hostname if available
+
+    Returns:
+        Tuple of (device_type_string, source_string)
+        source values: 'port_detection' | 'http_banner' | 'vendor_lookup' | 'unknown'
+    """
+    open_ports = open_ports or []
+    http_banners = http_banners or {}
+
+    # 1 — OT/network port detection (highest priority)
+    port_classification = classify_by_ports(open_ports)
+    if port_classification:
+        return port_classification, "port_detection"
+
+    # 2 — HTTP banner analysis
+    banner_classification = classify_by_http_banner(http_banners)
+    if banner_classification:
+        return banner_classification, "http_banner"
+
+    # 3 — Vendor name lookup
+    vendor_classification = classify_device(vendor)
+    if "Unknown" not in vendor_classification:
+        return vendor_classification, "vendor_lookup"
+
+    # 4 — Fallback
+    return "Unknown — Classify manually", "unknown"
 
 
 def resolve_vendor(mac: str, arp_vendor: str) -> str:
@@ -92,10 +294,8 @@ def resolve_vendor(mac: str, arp_vendor: str) -> str:
     MAC is always the primary identifier.
     """
     oui = mac[:8].lower()
-    # Always prefer local OUI table for accuracy
     if oui in OUI_LOOKUP:
         return OUI_LOOKUP[oui]
-    # Fall back to arp-scan result
     if "(unknown" not in arp_vendor.lower() and arp_vendor.strip():
         return arp_vendor.strip()
     return f"Unknown OUI: {oui}"
@@ -123,7 +323,7 @@ def parse_arp_scan(filepath: str) -> list:
         re.IGNORECASE
     )
 
-    devices = {}  # key = MAC address (primary identifier)
+    devices = {}
 
     with open(filepath, "r") as f:
         for line in f:
@@ -136,15 +336,13 @@ def parse_arp_scan(filepath: str) -> list:
             mac = match.group(2).lower()
             vendor_raw = match.group(3).strip()
 
-            # Use MAC as primary key — not IP
             if mac in devices:
                 devices[mac]["dup_count"] += 1
-                # Update IP in case it changed via DHCP
                 devices[mac]["ip_address"] = ip
                 continue
 
             vendor = resolve_vendor(mac, vendor_raw)
-            device_type = classify_device(vendor)
+            device_type, _ = classify_device_enriched(vendor)
             locally_admin = is_locally_administered(mac)
 
             devices[mac] = {
@@ -232,4 +430,3 @@ if __name__ == "__main__":
     devices = parse_arp_scan(input_file)
     print_summary(devices)
     export_csv(devices, output_file)
-    print(f"\n🚀 Next step: python3 load_to_api.py {output_file}")
