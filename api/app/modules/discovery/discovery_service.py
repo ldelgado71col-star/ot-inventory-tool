@@ -66,7 +66,7 @@ class DiscoveryService:
             return results
 
         try:
-            cmd = ["nmap", "-T4", "--open", "-p", ports, "--host-timeout", "10s", "--max-retries", "1", "-oG", "-"] + targets
+            cmd = ["nmap", "-T5", "--open", "-p", ports, "--host-timeout", "5s", "--max-retries", "1", "-oG", "-"] + targets
             process = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=120)
             output = process.stdout
 
