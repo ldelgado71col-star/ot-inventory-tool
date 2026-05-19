@@ -99,18 +99,18 @@ apt-get install -y -qq \
 # ── 5. Instalar Docker ────────────────────────────────────────────────────
 echo -e "${GREEN}[2/7] Instalando Docker...${NC}"
 if ! command -v docker &> /dev/null; then
-  apt-get install -y -qq docker.io docker-compose-v2
+  curl -fsSL https://get.docker.com | sh
   systemctl enable docker
   systemctl start docker
   usermod -aG docker "$REAL_USER"
-  echo "  Docker instalado y configurado."
+  echo "  Docker oficial instalado y configurado."
 else
   echo "  Docker ya instalado: $(docker --version)"
 fi
 
 # Verificar docker compose
 if ! docker compose version &> /dev/null; then
-  apt-get install -y -qq docker-compose-v2
+  echo "  Docker Compose incluido en Docker oficial."
 fi
 
 # ── 6. Clonar repositorio ─────────────────────────────────────────────────
