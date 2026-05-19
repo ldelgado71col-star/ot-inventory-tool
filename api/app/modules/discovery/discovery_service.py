@@ -31,7 +31,7 @@ class DiscoveryService:
                 "--timeout", str(timeout_ms),
                 subnet
             ]
-            process = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            process = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=60)
             output = process.stdout
 
             # Match lines with IP, MAC, and Vendor
@@ -67,7 +67,7 @@ class DiscoveryService:
 
         try:
             cmd = ["nmap", "-T4", "--open", "-p", ports, "--host-timeout", "10s", "--max-retries", "1", "-oG", "-"] + targets
-            process = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            process = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=120)
             output = process.stdout
 
             host_pattern = re.compile(r'^Host:\s+(\d{1,3}(?:\.\d{1,3}){3})\s+.*Ports:\s+(.*)$')
