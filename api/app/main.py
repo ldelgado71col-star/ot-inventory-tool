@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 app = FastAPI(
     title="OT Inventory Tool API",
     description="OT Network Asset Discovery and Inventory Platform",
-    version="0.2.0"
+    version="0.4.2"
 )
 
 app.add_middleware(
@@ -57,15 +57,15 @@ class ObservationCreate(BaseModel):
 class ScanRequest(BaseModel):
     subnet: str = "192.168.2.0/24"
     interface: str = "eth0"
-    retries: int = 5
-    timeout_ms: int = 1500
+    retries: int = 3
+    interval: int = 15
 
 
 # ── Health ────────────────────────────────────────────────────────────────
 
 @app.get("/health", tags=["Health"])
 def health():
-    return {"status": "ok", "service": "ot-inventory-api", "version": "0.2.0"}
+    return {"status": "ok", "service": "ot-inventory-api", "version": "0.4.2"}
 
 
 # ── Assets ────────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ def create_asset(asset: AssetCreate):
 
 # ── Discovery ─────────────────────────────────────────────────────────────
 
-def _run_scan_and_save(subnet: str, interface: str, retries: int, timeout_ms: int):
+def _run_scan_and_save(subnet: str, interface: str, retries: int, interval: int):
     """Background task — runs full discovery and saves results to database."""
     try:
         import sys
@@ -196,7 +196,7 @@ def trigger_scan(request: ScanRequest, background_tasks: BackgroundTasks):
         subnet=request.subnet,
         interface=request.interface,
         retries=request.retries,
-        timeout_ms=request.timeout_ms
+        interval=request.interval
     )
     return {
         "status": "scan started",
@@ -219,7 +219,7 @@ def quick_scan():
             subnet="192.168.2.0/24",
             interface="eth0",
             retries=3,
-            timeout_ms=1000
+            interval=15
         )
         return {"status": "ok", "devices_found": len(devices), "devices": devices}
     except Exception as e:
