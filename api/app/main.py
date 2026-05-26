@@ -1,4 +1,4 @@
-﻿import os
+import os
 import psycopg2
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 app = FastAPI(
     title="OT Inventory Tool API",
     description="OT Network Asset Discovery and Inventory Platform",
-    version="0.4.2"
+    version="0.5.0"
 )
 
 app.add_middleware(
@@ -65,7 +65,7 @@ class ScanRequest(BaseModel):
 
 @app.get("/health", tags=["Health"])
 def health():
-    return {"status": "ok", "service": "ot-inventory-api", "version": "0.4.2"}
+    return {"status": "ok", "service": "ot-inventory-api", "version": "0.5.0"}
 
 
 # ── Assets ────────────────────────────────────────────────────────────────
@@ -78,7 +78,9 @@ def list_assets():
         SELECT
             id, asset_tag, vendor, device_type, model,
             firmware_version, ip_address::text, protocol,
-            location, created_at, hostname, open_ports
+            location, created_at, hostname, open_ports,
+            mac_address, first_seen, last_seen,
+            classification_source, subnet
         FROM assets
         ORDER BY id;
     """)
@@ -98,7 +100,12 @@ def list_assets():
             "location": row[8],
             "created_at": row[9],
             "hostname": row[10],
-            "open_ports": row[11]
+            "open_ports": row[11],
+            "mac_address": row[12],
+            "first_seen": row[13],
+            "last_seen": row[14],
+            "classification_source": row[15],
+            "subnet": row[16]
         }
         for row in rows
     ]
@@ -108,12 +115,14 @@ def list_assets():
 def create_asset(asset: AssetCreate):
     conn = get_connection()
     cur = conn.cursor()
+    now = datetime.now(timezone.utc)
     cur.execute("""
         INSERT INTO assets (
             asset_tag, vendor, device_type, model,
-            firmware_version, ip_address, protocol, location
+            firmware_version, ip_address, mac_address,
+            protocol, location, first_seen, last_seen
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (asset_tag)
         DO UPDATE SET
             vendor = EXCLUDED.vendor,
@@ -121,12 +130,15 @@ def create_asset(asset: AssetCreate):
             model = EXCLUDED.model,
             firmware_version = EXCLUDED.firmware_version,
             ip_address = EXCLUDED.ip_address,
+            mac_address = EXCLUDED.mac_address,
             protocol = EXCLUDED.protocol,
-            location = EXCLUDED.location
+            location = EXCLUDED.location,
+            last_seen = EXCLUDED.last_seen
         RETURNING id;
     """, (
         asset.asset_tag, asset.vendor, asset.device_type, asset.model,
-        asset.firmware_version, asset.ip_address, asset.protocol, asset.location
+        asset.firmware_version, asset.ip_address, asset.mac_address,
+        asset.protocol, asset.location, now, now
     ))
     asset_id = cur.fetchone()[0]
     conn.commit()
@@ -148,34 +160,53 @@ def _run_scan_and_save(subnet: str, interface: str, retries: int, interval: int)
         conn = get_connection()
         cur = conn.cursor()
         saved = 0
+        now = datetime.now(timezone.utc)
         for d in devices:
-            mac_clean = d.get("mac", "").replace(":", "").upper()
+            mac_raw = d.get("mac", "")
+            mac_clean = mac_raw.replace(":", "").upper()
             asset_tag = f"NET-{mac_clean}"
+
+            # Format MAC with colons for the mac_address column
+            mac_formatted = mac_raw.lower() if mac_raw else None
+
             open_ports = d.get("open_ports", [])
             ports_str = ",".join(str(p) for p in open_ports) if open_ports else None
             hostname = d.get("hostname") or None
+            classification_source = d.get("classification_source") or None
+
             cur.execute("""
                 INSERT INTO assets (
                     asset_tag, vendor, device_type, ip_address,
-                    hostname, protocol, location, open_ports
+                    mac_address, hostname, protocol, location,
+                    open_ports, classification_source, subnet,
+                    first_seen, last_seen
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (asset_tag)
                 DO UPDATE SET
                     ip_address = EXCLUDED.ip_address,
                     vendor = EXCLUDED.vendor,
                     device_type = EXCLUDED.device_type,
+                    mac_address = EXCLUDED.mac_address,
                     hostname = EXCLUDED.hostname,
-                    open_ports = EXCLUDED.open_ports
+                    open_ports = EXCLUDED.open_ports,
+                    classification_source = EXCLUDED.classification_source,
+                    subnet = EXCLUDED.subnet,
+                    last_seen = EXCLUDED.last_seen
             """, (
                 asset_tag,
                 d.get("vendor", "Unknown"),
                 d.get("device_type", "Unknown"),
                 d.get("ip", ""),
+                mac_formatted,
                 hostname,
                 "ARP",
                 "Network",
-                ports_str
+                ports_str,
+                classification_source,
+                subnet,
+                now,
+                now
             ))
             saved += 1
         conn.commit()
@@ -184,6 +215,8 @@ def _run_scan_and_save(subnet: str, interface: str, retries: int, interval: int)
         print(f"[scan] Saved {saved} assets from {subnet}")
     except Exception as e:
         print(f"[scan] Error: {e}")
+        import traceback
+        traceback.print_exc()
 
 @app.post("/discovery/scan", tags=["Discovery"])
 def trigger_scan(request: ScanRequest, background_tasks: BackgroundTasks):
