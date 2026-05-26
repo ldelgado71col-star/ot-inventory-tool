@@ -22,6 +22,10 @@ app.add_middleware(
 )
 
 
+# ── Scan State ────────────────────────────────────────────────────────────
+scan_state = {"status": "idle", "devices_found": 0, "last_error": None}
+
+
 def get_connection():
     return psycopg2.connect(
         host=os.getenv("POSTGRES_HOST", "db"),
@@ -151,6 +155,8 @@ def create_asset(asset: AssetCreate):
 
 def _run_scan_and_save(subnet: str, interface: str, retries: int, interval: int):
     """Background task — runs full discovery and saves results to database."""
+    global scan_state
+    scan_state = {"status": "running", "devices_found": 0, "last_error": None}
     try:
         import sys
         sys.path.insert(0, "/app")
@@ -212,8 +218,10 @@ def _run_scan_and_save(subnet: str, interface: str, retries: int, interval: int)
         conn.commit()
         cur.close()
         conn.close()
+        scan_state = {"status": "complete", "devices_found": saved, "last_error": None}
         print(f"[scan] Saved {saved} assets from {subnet}")
     except Exception as e:
+        scan_state = {"status": "error", "devices_found": 0, "last_error": str(e)}
         print(f"[scan] Error: {e}")
         import traceback
         traceback.print_exc()
@@ -237,6 +245,12 @@ def trigger_scan(request: ScanRequest, background_tasks: BackgroundTasks):
         "interface": request.interface,
         "message": "Scan running in background. Check /assets for results."
     }
+
+
+@app.get("/discovery/scan/status", tags=["Discovery"])
+def scan_status():
+    """Check the status of the current or last scan."""
+    return scan_state
 
 
 @app.get("/discovery/scan/quick", tags=["Discovery"])

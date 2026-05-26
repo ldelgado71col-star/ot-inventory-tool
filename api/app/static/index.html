@@ -638,14 +638,42 @@
 
   async function runScan() {
     if(currentUser&&currentUser.role==='viewer') return;
-    document.getElementById('scan-status').textContent='⏳ Scanning network...';
+    const btn=document.getElementById('btn-scan');
+    btn.disabled=true;
+    btn.textContent='⏳ Scanning...';
+    document.getElementById('scan-status').textContent='⏳ Full discovery running...';
     try {
-      const res=await fetch(API+'/discovery/scan/quick');
-      const data=await res.json();
-      document.getElementById('scan-status').textContent='✅ Found '+data.devices_found+' devices';
-      setTimeout(loadAssets,1000);
+      await fetch(API+'/discovery/scan',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({subnet:'192.168.2.0/24',interface:'eth0',retries:3,interval:15})
+      });
+      // Poll scan status every 5 seconds
+      const poll=setInterval(async()=>{
+        try {
+          const sr=await fetch(API+'/discovery/scan/status');
+          const st=await sr.json();
+          if(st.status==='complete'){
+            clearInterval(poll);
+            btn.disabled=false;
+            btn.textContent='⚡ Scan Network';
+            document.getElementById('scan-status').textContent='✅ Scan complete — '+st.devices_found+' devices saved';
+            loadAssets();
+            setTimeout(()=>document.getElementById('scan-status').textContent='',8000);
+          } else if(st.status==='error'){
+            clearInterval(poll);
+            btn.disabled=false;
+            btn.textContent='⚡ Scan Network';
+            document.getElementById('scan-status').textContent='❌ Scan error: '+st.last_error;
+          } else {
+            document.getElementById('scan-status').textContent='⏳ Scanning... please wait';
+          }
+        } catch(e){ /* keep polling */ }
+      },5000);
     } catch(e) {
-      document.getElementById('scan-status').textContent='❌ Scan failed';
+      btn.disabled=false;
+      btn.textContent='⚡ Scan Network';
+      document.getElementById('scan-status').textContent='❌ Scan failed to start';
     }
   }
 
