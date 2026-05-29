@@ -63,6 +63,7 @@ class ScanRequest(BaseModel):
     interface: str = "eth0"
     retries: int = 3
     interval: int = 15
+    timeout: int = 1500
 
 
 # ── Health ────────────────────────────────────────────────────────────────

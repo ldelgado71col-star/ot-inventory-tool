@@ -9,7 +9,7 @@ class DiscoveryService:
     ARP scanning, Nmap port scanning, and HTTP banner grabbing.
     """
 
-    def run_arp_scan(self, subnet: str, interface: str = "eth0", retries: int = 3, interval: int = 15) -> list[dict]:
+    def run_arp_scan(self, subnet: str, interface: str = "eth0", retries: int = 3, interval: int = 15, timeout: int = 1500) -> list[dict]:
         """
         Run arp-scan via subprocess to find active hosts on the network.
 
@@ -29,6 +29,7 @@ class DiscoveryService:
                 "--interface", interface,
                 "--retry", str(retries),
                 "--interval", str(interval),
+                "--timeout", str(timeout),
                 "--macfile", "/usr/share/arp-scan/ieee-oui.txt",
                 subnet
             ]
