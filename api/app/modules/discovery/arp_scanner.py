@@ -48,6 +48,8 @@ OUI_LOOKUP = {
     "58:05:d9": "Seiko Epson Corporation",
     # Action Star USB Ethernet
     "00:24:9b": "Action Star Enterprise Co., Ltd.",
+    # EZVIZ physical security devices
+    "54:d6:0d": "Hangzhou Ezviz Software Co., Ltd.",
     # Microsoft Hyper-V virtual NICs
     "00:15:5d": "Microsoft Hyper-V (Virtual Machine)",
     # Bizlink USB Ethernet
@@ -73,6 +75,9 @@ DEVICE_TYPE_MAP = {
     "Hon Hai":               "Endpoint — PC / Workstation (Foxconn NIC)",
     "Foxconn":               "Endpoint — PC / Workstation (Foxconn NIC)",
     "Action Star":           "Network — USB Ethernet Adapter",
+    "Ezviz":                 "IoT — Physical Security (EZVIZ)",
+    "EZVIZ":                 "IoT — Physical Security (EZVIZ)",
+    "Hikvision":             "IoT — Physical Security (Hikvision)",
     "Hyper-V":               "Virtual Machine (Lab)",
     "Microsoft":             "Virtual Machine (Lab)",
     "Bizlink":               "Network — USB Ethernet Adapter",

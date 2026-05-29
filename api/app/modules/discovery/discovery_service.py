@@ -30,7 +30,7 @@ class DiscoveryService:
                 "--retry", str(retries),
                 "--interval", str(interval),
                 "--timeout", str(timeout),
-                "--macfile", "/usr/share/arp-scan/ieee-oui.txt",
+                "--ouifile", "/usr/share/arp-scan/ieee-oui.txt",
                 subnet
             ]
             process = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=60)
